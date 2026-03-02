@@ -1,9 +1,15 @@
 from matplotlib import animation
 from lib.init import galton_folder_path
+from lib.logger import main_logger
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pymunk
 import math
+import time
+import cv2
+
+_viridis_colors = plt.get_cmap('viridis')(np.linspace(0, 1, 256))[:, :3]
 
 
 class BallCollisionData:
@@ -30,7 +36,7 @@ class BallCollisionData:
 
 
 class PhysicsSimulation:
-    def __init__(self, balls: int = None, seed: int = None):
+    def __init__(self, seed: int = None):
         self.space_gravity = 0, -9.81
         self.space_damping = 0.995
         self.space_threaded = False
@@ -50,12 +56,14 @@ class PhysicsSimulation:
         self.rows = 16
         self.DYNAMIC_CATEGORY = 1  # 2 ** 0
         self.STATIC_CATEGORY = 2  # 2 ** 1
-        self.balls_count = 1 if balls is None else balls
         self.lowest_x, self.lowest_y, self.columns = 0, 0, 0
         self.seed = np.random.randint(2 ** 63 - 1) if seed is None else seed
         self.random = np.random.default_rng(self.seed)
+        self.interval = self.dt * self.subsampling
+        self.fps = int(1 / self.interval)
+        self.manual_coefficients = np.array([500, 450, 30, 9, 3, 1, 0.5, 0.2, 0, 0.2, 0.5, 1, 3, 9, 30, 450, 500])
 
-    def setup_space(self) -> tuple[pymunk.Space, list[pymunk.Body]]:
+    def setup_space(self, balls_count: int) -> tuple[pymunk.Space, list[pymunk.Body]]:
         space = pymunk.Space(threaded=self.space_threaded)
 
         space.gravity = self.space_gravity
@@ -119,7 +127,7 @@ class PhysicsSimulation:
 
         balls: list[pymunk.Body] = []
 
-        for i in range(self.balls_count):
+        for i in range(balls_count):
             body = pymunk.Body(0, 0)
             body.position = (
                 self.width / 2 + self.random.uniform(-self.pos_rand, self.pos_rand),
@@ -189,7 +197,7 @@ class PhysicsSimulation:
         Var = E2 - E ** 2
         return E, Var
 
-    def compute_probabilities(self, categories_count: list[int], manual_coefficients: np.ndarray):
+    def compute_probabilities(self, categories_count: list[int]):
         categories_count = np.array(categories_count)
         resolved_count = np.sum(categories_count)
         probabilities = categories_count / resolved_count
@@ -209,18 +217,18 @@ class PhysicsSimulation:
         coefficients = 1 / bin_probabilities / bin_probabilities.size
         print('IDEAL coefficients:', list(map(float, coefficients)))
 
-        print(manual_coefficients * bin_probabilities)
-        coef_E, coef_Var = self.calculate_dist_params(bin_probabilities, manual_coefficients)
+        print(self.manual_coefficients * bin_probabilities)
+        coef_E, coef_Var = self.calculate_dist_params(bin_probabilities, self.manual_coefficients)
         bin_probabilities = list(map(float, bin_probabilities))
-        manual_coefficients = list(map(float, manual_coefficients))
+        manual_coefficients = list(map(float, self.manual_coefficients))
         print(f"{manual_coefficients=}\n{bin_probabilities=}\n{coef_E=}\n{coef_Var=}\n{bin_E=}\n{bin_Var=}")
 
-    def prepare_ball_collisions_data(self, balls: list[pymunk.Body]) -> \
+    def prepare_ball_collisions_data(self, balls: list[pymunk.Body], predefined_paths: list[int] = None) -> \
             tuple[dict[int, BallCollisionData], list[BallCollisionData]]:
         ball_collisions_data = dict()
         ball_collisions_list = list()
         for i, ball_body in enumerate(balls):
-            path = int(self.random.integers(0, 2 ** self.rows))
+            path = int(self.random.integers(0, 2 ** self.rows)) if predefined_paths is None else predefined_paths[i]
             ball_data = BallCollisionData(path, self.rows, i)
             ball_collisions_data[ball_body.id] = ball_data
             ball_collisions_list.append(ball_data)
@@ -246,33 +254,27 @@ class PhysicsSimulation:
         space.on_collision(self.DYNAMIC_CATEGORY, self.STATIC_CATEGORY, pre_solve=pre_solve_ball,
                            data=ball_collisions_data)
 
-    def render(self) -> tuple[float, str, float]:
-        space, balls = self.setup_space()
-        ball_collisions_data, ball_collisions_list = self.prepare_ball_collisions_data(balls)
-        self.set_pre_solve_for_balls_collisions(space, ball_collisions_data)
-        positions, ball_category, categories_count = self.simulate(space, balls)
-
-        manual_coefficients = np.array([500, 450, 30, 9, 3, 1, 0.5, 0.2, 0, 0.2, 0.5, 1, 3, 9, 30, 450, 500])
-        assert len(categories_count) == manual_coefficients.size, "Inconsistent number of categories"
-        # self.compute_probabilities(categories_count, manual_coefficients)
-
-        # Prepare the figure and axes
+    def prepare_figure(self) -> tuple[plt.Figure, plt.Axes]:
         fig, ax = plt.subplots(figsize=(self.width, self.height), dpi=self.dpi)
         ax.set(xlim=[0, self.width], ylim=[0, self.height])
         ax.set_aspect("equal")
         ax.set_position((0, 0, 1, 1))
         fig.set(facecolor="y")
+        return fig, ax
 
-        # Prepare the patches for the balls
+    @staticmethod
+    def prepare_patches(balls: list[pymunk.Body], ball_category: list[int], len_categories: int) -> list[plt.Circle]:
         cmap = plt.get_cmap("viridis")
         circles = [
             plt.Circle(
                 xy=(0, 0),
                 radius=b.radius,
-                facecolor=cmap((ball_category[i] - 1) / (len(categories_count) - 1)) if ball_category[i] != 0 else "b"
+                facecolor=cmap((ball_category[i] - 1) / (len_categories - 1)) if ball_category[i] != 0 else "b"
             ) for i, b in enumerate(balls)
         ]
-        [ax.add_patch(c) for c in circles]
+        return circles
+
+    def prepare_background(self, ax: plt.Axes, space: pymunk.Space, categories_count: list[int]):
         ax.set_facecolor((176 / 255, 196 / 255, 177 / 255))
 
         categories_middle = (len(categories_count) - 3) / 2
@@ -284,7 +286,7 @@ class PhysicsSimulation:
                 color = cmap(abs(s.a.x - self.lowest_x - categories_middle * self.gap) / self.gap / categories_middle)
                 ax.plot([s.a.x, s.b.x], [s.a.y, s.b.y], linewidth=s.radius * self.dpi, color=color)
 
-        for i, coef in enumerate(manual_coefficients[1:-1]):
+        for i, coef in enumerate(self.manual_coefficients[1:-1]):
             color = cmap(abs(categories_middle - i) / categories_middle)
             ax.text(
                 self.lowest_x + self.gap * i + self.gap * 0.5, self.lowest_y - 0.5, f'{coef:g}',
@@ -295,14 +297,12 @@ class PhysicsSimulation:
                 verticalalignment='center'
             )
 
+    def render(self, fig: plt.Figure, circles: list[plt.Circle], frames: list[list[np.ndarray[tuple[any, ...]]]],
+               filename: str):
         cur_frame = [-3]
-        interval = self.dt * self.subsampling
-        frames = positions[::self.subsampling]
-        frames_count = len(frames)
-        fps = int(1 / (self.dt * self.subsampling))
 
         # Animation function. This is called for each frame, passing an entry in positions
-        def drawframe(p: list[tuple[float, float]]):
+        def draw_frame(p: list[tuple[float, float]]):
             # cur_frame[0] += 1
             # if cur_frame[0] % 10 == 0 or cur_frame[0] >= frames_count:
             #     print(f'Frame: {cur_frame[0]}/{frames_count}')
@@ -312,23 +312,110 @@ class PhysicsSimulation:
 
         anim = animation.FuncAnimation(
             fig,
-            drawframe,
+            draw_frame,
             frames=frames,
-            interval=interval * 1000,
+            interval=self.interval * 1000,
             blit=True
         )
 
-        # Set to True to save the animation to file
         # print(f"Rendering {frames_count} frames at {fps} fps")
-        filename = galton_folder_path / f"{self.seed}.mp4"
-        FFwriter = animation.FFMpegWriter(fps=fps)
+
+        FFwriter = animation.FFMpegWriter(fps=self.fps)
         anim.save(filename, writer=FFwriter)
         plt.close(fig)
 
-        multiplier = np.round(np.sum(np.array(categories_count) * manual_coefficients), 1)
-        return float(multiplier), filename, frames_count * interval
+    @staticmethod
+    def autumn_cmap(t: float):
+        return 255, int(round(t * 255)), 0
+
+    @staticmethod
+    def viridis_cmap(t: float):
+        idx = int(round(t * (len(_viridis_colors) - 1)))
+        return _viridis_colors[idx] * 255
+
+    def prepare_ball_colors(self, ball_category: list[int], len_categories: int) -> list[tuple[int, int, int]]:
+        ball_colors = list()
+        categories_middle = (len_categories - 1) / 2
+        for i, category in enumerate(ball_category):
+            t = (abs(category - 1 - categories_middle) / categories_middle)
+            R, G, B = self.viridis_cmap(t)
+            ball_colors.append((B, G, R))
+        return ball_colors
+
+    def render2(self, frames: list[list[np.ndarray[tuple[any, ...]]]], ball_colors: list[tuple[int, int, int]],
+                filename: str, background_path: str = None):
+        t = time.monotonic()
+        height, width = int(self.width * self.dpi), int(self.height * self.dpi)
+        fourcc = cv2.VideoWriter.fourcc(*'avc1')  # avc1, MJPG
+        writer = cv2.VideoWriter(filename, fourcc, self.fps, (height, width))
+
+        if not writer.isOpened():
+            raise RuntimeError("VideoWriter failed to open – check codec / path")
+
+        if background_path is None:
+            background_path = galton_folder_path / "background.png"
+        if not os.path.exists(background_path):
+            self.save_background(background_path)
+
+        background = cv2.imread(background_path)
+
+        for circle in frames:
+            frame = background.copy()
+            for idx, pos in enumerate(circle):
+                center = int(np.round(pos[0] * self.dpi)), int(np.round(width - pos[1] * self.dpi))
+                cv2.circle(frame, center, int(self.R * self.dpi), ball_colors[idx], -1, lineType=cv2.LINE_AA)
+            writer.write(frame)
+        writer.release()
+        main_logger.info(f"Galton simulation completed in {time.monotonic() - t:.3f} seconds")
+
+    def save_background(self, filename: str):
+        space, balls = self.setup_space(1)
+        ball_collisions_data, ball_collisions_list = self.prepare_ball_collisions_data(balls)
+        self.set_pre_solve_for_balls_collisions(space, ball_collisions_data)
+        positions, ball_category, categories_count = self.simulate(space, balls)
+        fig, ax = self.prepare_figure()
+        self.prepare_background(ax, space, categories_count)
+        plt.savefig(filename)
+
+    def run(self, balls_count: int = 1) -> tuple[float, str, float]:
+        space, balls = self.setup_space(balls_count)
+        ball_collisions_data, ball_collisions_list = self.prepare_ball_collisions_data(balls)
+        self.set_pre_solve_for_balls_collisions(space, ball_collisions_data)
+        positions, ball_category, categories_count = self.simulate(space, balls)
+
+        assert len(categories_count) == self.manual_coefficients.size, "Inconsistent number of categories"
+        # self.compute_probabilities(categories_count)
+
+        # fig, ax = self.prepare_figure()
+        # circles = self.prepare_patches(balls, ball_category, len(categories_count))
+        # for c in circles:
+        #     ax.add_patch(c)
+        # self.prepare_background(ax, space, categories_count)
+
+        filename = galton_folder_path / f"{self.seed}.mp4"
+        multiplier = np.round(np.sum(np.array(categories_count) * self.manual_coefficients), 1)
+        frames = positions[::self.subsampling]
+        # self.render(fig, circles, frames, filename)
+        ball_colors = self.prepare_ball_colors(ball_category, len(categories_count))
+        self.render2(frames, ball_colors, filename)
+        return float(multiplier), filename, len(frames) * self.interval
+
+    def run_predefined(self, predefined_paths: list[int]):
+        space, balls = self.setup_space(len(predefined_paths))
+        ball_collisions_data, ball_collisions_list = self.prepare_ball_collisions_data(balls, predefined_paths)
+        self.set_pre_solve_for_balls_collisions(space, ball_collisions_data)
+        positions, ball_category, categories_count = self.simulate(space, balls)
+
+        collision_data = ball_collisions_list[0]
+        filename = galton_folder_path / f"{collision_data.get_path()}.mp4"
+        frames = positions[::self.subsampling]
+        ball_colors = self.prepare_ball_colors(ball_category, len(categories_count))
+        self.render2(frames, ball_colors, filename)
 
 
 if __name__ == '__main__':
-    physics_simulation = PhysicsSimulation(1)
-    print(physics_simulation.render())
+    physics_simulation = PhysicsSimulation()
+    # physics_simulation.save_background(galton_folder_path / "background.png")
+    paths = ["0" * (16 - i) + "1" * i for i in range(17)]
+    paths = [int(p, 2) for p in paths]
+    physics_simulation.run_predefined(paths)

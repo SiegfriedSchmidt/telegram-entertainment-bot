@@ -138,10 +138,10 @@ class Gambler:
         username = message.from_user.username
         wait_msg = await message.reply("Waiting for simulation results...")
 
-        physics_simulation = PhysicsSimulation(balls)
-        multiplier, filename, duration = await run_in_thread(physics_simulation.render)
+        physics_simulation = PhysicsSimulation()
+        multiplier, filename, duration = await run_in_thread(physics_simulation.run, balls)
         gain = int(multiplier * bet_per_ball)
-        multiplier = round(multiplier / balls, 1)
+        multiplier = round(multiplier / balls, 2)
 
         database.update_user_stats(username, StatsType.galton)
         self.ledger.record_deposit(username, bet, "bet")

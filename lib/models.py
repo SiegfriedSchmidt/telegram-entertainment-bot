@@ -26,6 +26,7 @@ class HostModel(BaseModel):
 
 class UserModel(BaseModel):
     host: str
+    nonce: int
 
 
 class TerminalType(str, BaseEnum):

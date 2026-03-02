@@ -7,19 +7,28 @@ from lib.config_reader import config
 
 class User:
     def __init__(self, user: Optional[UserModel] = None):
-        self.user = UserModel(
-            host=config.main_host.get_secret_value()
+        self.__user = UserModel(
+            host=config.main_host.get_secret_value(),
+            nonce=1
         ) if user is None else user
 
     @property
+    def nonce(self) -> int:
+        return self.__user.nonce
+
+    @nonce.setter
+    def nonce(self, new_nonce: int):
+        self.__user.nonce = new_nonce
+
+    @property
     def host(self) -> str:
-        return self.user.host
+        return self.__user.host
 
     @host.setter
     def host(self, new_host: str):
         if new_host not in ssh_manager.get_hosts():
             raise KeyError(f'Host {new_host} does not exist!')
-        self.user.host = new_host
+        self.__user.host = new_host
 
 
 class TemporalStorage:
