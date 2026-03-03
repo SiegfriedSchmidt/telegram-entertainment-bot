@@ -1,7 +1,8 @@
+import asyncio
 import json
 import paramiko
 import time
-from typing import Tuple, List
+from typing import Tuple, List, Callable, Awaitable
 from lib.config_reader import config
 from lib.init import keys_folder_path
 from lib.logger import ssh_logger
@@ -18,6 +19,7 @@ class SSHCommands:
         self.username = host.username.get_secret_value()
         self.key = paramiko.Ed25519Key.from_private_key_file(keys_folder_path / host.key_name.get_secret_value())
         self.ssh: paramiko.SSHClient | None = None
+        self.following_file: str = ''
         ssh_logger.info(f"SSH commands module for {self.name} created!")
 
     def get_running_containers(self) -> dict:
@@ -78,6 +80,37 @@ nohup sh -c '
     def wakeonlan(self, mac: str):
         return self.run_single_command(f"wakeonlan {mac}")
 
+    async def follow_file(self, location: str, callback: Callable[[str], Awaitable[None]]) -> None:
+        if self.following_file:
+            raise RuntimeError(f"You are following file '{self.following_file}' right now!")
+
+        self.connect()
+        stdin, stdout, stderr = self.ssh.exec_command(f"tail -n 1 -F {location}", get_pty=True, timeout=None)
+        stdin.close()
+        self.following_file = location
+
+        try:
+            while True:
+                if not self.following_file:
+                    break
+
+                if stdout.channel.recv_ready():
+                    line = stdout.readline()
+                    if line:
+                        await callback(line)
+                    else:
+                        break
+                else:
+                    await asyncio.sleep(1)
+        except Exception as e:
+            ssh_logger.error("Error in file following", exc_info=e)
+        finally:
+            stdout.channel.close()
+            self.disconnect()
+
+    def unfollow(self):
+        self.following_file = ''
+
     def openconnect(self, action: str):
         return self.run_single_command(f"sudo systemctl {action} openconnect.service")
 
@@ -93,6 +126,9 @@ nohup sh -c '
             self.ssh = None
 
     def run_multiple_commands(self, commands: List[str], delay: float = 1) -> List[Tuple[str, str]]:
+        if self.following_file:
+            raise RuntimeError(f"You are following file '{self.following_file}' right now!")
+
         if not commands:
             return []
 

@@ -23,6 +23,8 @@ async def error_handler(event: ErrorEvent):
             await safe_send(event.update, f"Telegram rejected the message. {str(exception)}")
     elif isinstance(exception, TelegramAPIError):
         await safe_send(event.update, f"Telegram server is having a moment. {str(exception)}")
+    elif isinstance(exception, RuntimeError):
+        await safe_send(event.update, f"Runtime error occurred. {str(exception)}")
     else:
         await safe_send(event.update, f"Unknown error occurred. {str(exception)}")
 
@@ -35,5 +37,5 @@ async def safe_send(update, text: str):
             await update.message.answer(text[:4000])
         elif update.callback_query:
             await update.callback_query.message.answer(text[:4000])
-    except:
-        pass
+    except Exception as e:
+        main_logger.error(e, exc_info=True)

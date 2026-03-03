@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 from io import BytesIO
@@ -330,5 +331,25 @@ def create_router():
         if not result:
             return await large_respond(message, error)
         return await large_respond(message, result)
+
+    @router.message(Command("follow_file"), flags={'otp': True})
+    async def follow_file_cmd(message: types.Message, command: CommandObject, user: User):
+        args = get_args(command)
+        if len(args) != 1:
+            return await message.answer('invalid syntax, follow_file {location}')
+
+        async def callback(text: str):
+            await message.answer(text)
+
+        location = args[0]
+        asyncio.create_task(ssh_manager[user.host].follow_file(location, callback))
+        return await message.answer(f'File "{location}" following activated! To deactivate do /unfollow_file')
+
+    @router.message(Command("unfollow_file"))
+    async def unfollow_file_cmd(message: types.Message, user: User):
+        if not ssh_manager[user.host].following_file:
+            return await message.answer('You are not following any file right now!')
+        ssh_manager[user.host].unfollow()
+        return await message.answer(f'File following deactivated!')
 
     return router

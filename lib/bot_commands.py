@@ -54,6 +54,8 @@ bot_admin_commands = [
     ),
     BotCommand(command='switch', description='switch to another ssh host'),
     BotCommand(command='wol', description='{mac: required} wake on lan'),
+    BotCommand(command='follow_file', description='{location: required} follow file'),
+    BotCommand(command='unfollow_file', description='stop following current file'),
 ]
 
 bot_admin_commands += bot_general_commands
