@@ -9,6 +9,7 @@ from aiogram.utils.chat_action import ChatActionMiddleware
 from lib import database
 from lib.bot_commands import text_bot_general_commands, text_bot_admin_commands
 from lib.config_reader import config
+from lib.database import get_user_blocks_count, get_total_users_blocks_count
 from lib.ledger import Ledger, BlockNotMined
 from lib.api.gemini_api import gemini_api
 from lib.api.joke_api import get_joke
@@ -298,15 +299,15 @@ def create_router():
             return await message.answer(f"No statistic for {username} found!")
 
         return await message.answer(
-            f"<b>{username} stats:</b>\nDaily prizes opened: {stats.prizes}\nGamble attempts: {stats.gamble}\nGalton attempts: {stats.galton}\nMine attempts: {stats.mine}\nDaily reward amount: {database.get_daily_amount_for_user(username)}\nMax balance recorded: {ledger.get_user_max_balance(username)}",
+            f"<b>{username} stats:</b>\nDaily prizes opened: {stats.prizes}\nGamble attempts: {stats.gamble}\nGalton attempts: {stats.galton}\nMine attempts: {stats.mine}\nBlocks mined: {get_user_blocks_count(username)}\nDaily reward amount: {database.get_daily_amount_for_user(username)}\nMax balance recorded: {ledger.get_user_max_balance(username)}",
             parse_mode='html'
         )
 
     @router.message(Command("global_stats"))
-    async def global_stats_cmd(message: types.Message):
+    async def global_stats_cmd(message: types.Message, ledger: Ledger):
         totals = database.get_total_stats()
         return await message.answer(
-            f"<b>Global stats:</b>\nDaily prizes opened: {totals["prizes"]}\nGamble attempts: {totals["gamble"]}\nGalton attempts: {totals["galton"]}\nMine attempts: {totals["mine"]}\nDaily reward amount: {database.get_total_daily_amount()}",
+            f"<b>Global stats:</b>\nDaily prizes opened: {totals["prizes"]}\nGamble attempts: {totals["gamble"]}\nGalton attempts: {totals["galton"]}\nMine attempts: {totals["mine"]}\nBlocks mined: {get_total_users_blocks_count(ledger.genesis_username)}\nDaily reward amount: {database.get_total_daily_amount()}",
             parse_mode='html'
         )
 

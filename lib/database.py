@@ -148,6 +148,21 @@ def get_total_stats():
     return {k: (v or 0) for k, v in totals.items()}
 
 
+def get_user_blocks_count(username: str) -> int:
+    user = User.get_or_none(username=username)
+    if user is None:
+        return 0
+
+    return user.blocks.count()
+
+
+def get_total_users_blocks_count(genesis_username: str) -> int:
+    genesis_user = User.get_or_none(username=genesis_username)
+    if genesis_user is None:
+        return -1
+    return Block.select().where(Block.miner != genesis_user).count()
+
+
 def update_user_stats(user_or_name: str | User, stat_type: StatsType, increment: int = 1):
     if isinstance(user_or_name, str):
         user: User = User.get_or_create(username=user_or_name)[0]
