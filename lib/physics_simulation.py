@@ -1,6 +1,8 @@
+from pathlib import Path
 from matplotlib import animation
 from lib.init import galton_folder_path
 from lib.logger import main_logger
+from lib.storage import storage
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,6 +10,7 @@ import pymunk
 import math
 import time
 import cv2
+import subprocess
 
 _viridis_colors = plt.get_cmap('viridis')(np.linspace(0, 1, 256))[:, :3]
 
@@ -342,31 +345,52 @@ class PhysicsSimulation:
             ball_colors.append((B, G, R))
         return ball_colors
 
-    def render2(self, frames: list[list[np.ndarray[tuple[any, ...]]]], ball_colors: list[tuple[int, int, int]],
-                filename: str, background_path: str = None):
-        t = time.monotonic()
-        height, width = int(self.width * self.dpi), int(self.height * self.dpi)
-        fourcc = cv2.VideoWriter.fourcc(*'avc1')  # avc1, MJPG
-        writer = cv2.VideoWriter(filename, fourcc, self.fps, (height, width))
-
+    def write_frames(self, writer: cv2.VideoWriter, frames: list[list[np.ndarray[tuple[any, ...]]]],
+                     ball_colors: list[tuple[int, int, int]], width: int, height: int, background_path: str = None):
         if not writer.isOpened():
-            raise RuntimeError("VideoWriter failed to open – check codec / path")
-
+            writer.release()
+            raise RuntimeError("cv2.VideoWriter failed to open")
         if background_path is None:
             background_path = galton_folder_path / "background.png"
         if not os.path.exists(background_path):
             self.save_background(background_path)
 
         background = cv2.imread(background_path)
-
         for circle in frames:
             frame = background.copy()
             for idx, pos in enumerate(circle):
-                center = int(np.round(pos[0] * self.dpi)), int(np.round(width - pos[1] * self.dpi))
+                center = int(np.round(pos[0] * self.dpi)), int(np.round(height - pos[1] * self.dpi))
                 cv2.circle(frame, center, int(self.R * self.dpi), ball_colors[idx], -1, lineType=cv2.LINE_AA)
             writer.write(frame)
+
         writer.release()
-        main_logger.info(f"Galton simulation completed in {time.monotonic() - t:.3f} seconds")
+
+    def render_opencv(self, frames: list[list[np.ndarray[tuple[any, ...]]]], ball_colors: list[tuple[int, int, int]],
+                      filename: str, background_path: str = None):
+        t = time.monotonic()
+        width, height = int(self.width * self.dpi), int(self.height * self.dpi)
+
+        if storage.ffmpeg_use:
+            video_temp = Path(filename).parent / f"temp_{self.random.integers(0, 1 << 32)}.mkv"
+            writer = cv2.VideoWriter(video_temp, cv2.VideoWriter.fourcc(*'MJPG'), self.fps, (width, height))
+            self.write_frames(writer, frames, ball_colors, width, height, background_path)
+
+            subprocess.run([
+                'ffmpeg', '-y', '-i', video_temp,
+                '-c:v', 'libx264', '-crf', str(storage.ffmpeg_crf), '-preset', storage.ffmpeg_preset,
+                '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+                # '-c:a', 'aac', '-b:a', '128k',
+                filename
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            video_temp.unlink()
+        else:
+            writer = cv2.VideoWriter(filename, cv2.VideoWriter.fourcc(*'avc1'), self.fps, (width, height))
+            self.write_frames(writer, frames, ball_colors, width, height, background_path)
+
+        main_logger.info(
+            f"Galton simulation completed in {time.monotonic() - t:.3f} seconds" +
+            (" (ffmpeg used)" if storage.ffmpeg_use else "")
+        )
 
     def save_background(self, filename: str):
         space, balls = self.setup_space(1)
@@ -386,18 +410,12 @@ class PhysicsSimulation:
         assert len(categories_count) == self.manual_coefficients.size, "Inconsistent number of categories"
         # self.compute_probabilities(categories_count)
 
-        # fig, ax = self.prepare_figure()
-        # circles = self.prepare_patches(balls, ball_category, len(categories_count))
-        # for c in circles:
-        #     ax.add_patch(c)
-        # self.prepare_background(ax, space, categories_count)
-
         filename = galton_folder_path / f"{self.seed}.mp4"
         multiplier = np.round(np.sum(np.array(categories_count) * self.manual_coefficients), 1)
         frames = positions[::self.subsampling]
-        # self.render(fig, circles, frames, filename)
         ball_colors = self.prepare_ball_colors(ball_category, len(categories_count))
-        self.render2(frames, ball_colors, filename)
+
+        self.render_opencv(frames, ball_colors, filename)
         return float(multiplier), filename, len(frames) * self.interval
 
     def run_predefined(self, predefined_paths: list[int]):
@@ -410,7 +428,8 @@ class PhysicsSimulation:
         filename = galton_folder_path / f"{collision_data.get_path()}.mp4"
         frames = positions[::self.subsampling]
         ball_colors = self.prepare_ball_colors(ball_category, len(categories_count))
-        self.render2(frames, ball_colors, filename)
+
+        self.render_opencv(frames, ball_colors, filename)
 
 
 if __name__ == '__main__':
