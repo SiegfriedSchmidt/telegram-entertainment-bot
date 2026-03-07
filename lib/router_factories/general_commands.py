@@ -1,4 +1,5 @@
 import asyncio
+from itertools import chain
 from aiogram import Router, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject
@@ -165,11 +166,7 @@ def create_router():
     async def ledger_cmd(message: types.Message):
         txs = database.get_transactions(limit=50)
         txs_count = database.get_transactions_count()
-        text_txs = '\n'.join([
-            f'{tx.number}. {tx.from_user} -> {tx.to_user}, {tx.amount}, {tx.description} - {"pending" if tx.block is None else f"block {tx.block.height}"}'
-            for tx in txs
-        ])
-        return await message.answer(f"<b>Ledger ({txs_count} transactions):</b>\n{text_txs}", parse_mode='html')
+        return await large_respond(message, [f"<b>Ledger ({txs_count} transactions):</b>"] + txs, parse_mode='html')
 
     @router.message(Command("leaderboard"))
     async def leaderboard_cmd(message: types.Message, command: CommandObject, ledger: Ledger):
@@ -177,10 +174,11 @@ def create_router():
         is_all = len(args) == 1 and args[0] == "all"
         balances = ledger.get_all_balances() if is_all else ledger.get_all_balances()[1:]
 
-        text = '\n'.join([
-            f'{idx if is_all else idx + 1}. {username}: {amount}' for idx, (username, amount) in enumerate(balances)
-        ])
-        return await message.answer(f"<b>Leaderboard:</b>\n{text}", parse_mode='html')
+        lines = chain(
+            (f"<b>Leaderboard:</b>",),
+            (f'{idx if is_all else idx + 1}. {username}: {amount}' for idx, (username, amount) in enumerate(balances))
+        )
+        return await large_respond(message, lines, parse_mode='html')
 
     @router.message(Command("export_transactions"))
     async def export_transactions_cmd(message: types.Message, ledger: Ledger):
@@ -191,10 +189,7 @@ def create_router():
     async def blocks_cmd(message: types.Message):
         blocks = database.get_blocks(limit=50)
         blocks_count = database.get_blocks_count()
-        text_blocks = '\n'.join(
-            [f'Block: {b.height}, miner: {b.miner}, nonce: {b.nonce}, hash: {b.block_hash[:16]}...' for b in blocks]
-        )
-        return await message.answer(f"<b>Blocks list ({blocks_count}):</b>\n{text_blocks}", parse_mode='html')
+        return await large_respond(message, [f"<b>Blocks list ({blocks_count}):</b>"] + blocks, parse_mode='html')
 
     @router.message(Command("mine_block"))
     async def mine_block_cmd(message: types.Message, ledger: Ledger):
@@ -248,13 +243,17 @@ def create_router():
             return await message.answer("Block not found!")
 
         txs = database.get_block_transactions(block, limit=50, ascending=False)
-
-        text_block = f"Block {block.height}:\nTimestamp: {block.timestamp}\nMiner: {block.miner}\nNonce: {block.nonce}\nMerkle root: {block.merkle_root}\nPrevious hash: {block.prev_hash}\nHash: {block.block_hash}\nTransactions: {len(txs)}"
-        text_txs = '\n'.join([
-            f"{tx.number}. {tx.from_user} -> {tx.to_user}, {tx.amount}, {tx.description}" for tx in txs
-        ])
-
-        return await message.answer(f"{text_block}\n{text_txs}")
+        lines = [
+            f"<b>Block {block.height}</b>",
+            f"Timestamp: {block.timestamp}",
+            f"Miner: {block.miner}",
+            f"Nonce: {block.nonce}",
+            f"Merkle root: {block.merkle_root}",
+            f"Previous hash: {block.prev_hash}",
+            f"Hash: {block.block_hash}",
+            f"Transactions: {len(txs)}"
+        ]
+        return await large_respond(message, lines + txs, parse_mode='html')
 
     @router.message(Command("user_stats"))
     async def user_stats_cmd(message: types.Message, command: CommandObject, ledger: Ledger):
@@ -271,17 +270,35 @@ def create_router():
         if stats is None:
             return await message.answer(f"No statistic for {username} found!")
 
-        return await message.answer(
-            f"<b>{username} stats:</b>\nDaily prizes opened: {stats.prizes}\nGamble attempts: {stats.gamble}\nGalton attempts: {stats.galton}\nMine attempts: {stats.mine}\nBlocks mined: {get_user_blocks_count(username)}\nDaily reward amount: {database.get_daily_amount_for_user(username)}\nMax balance recorded: {ledger.get_user_max_balance(username)}",
-            parse_mode='html'
-        )
+        lines = [
+            f"<b>{username} stats:</b>",
+            f"Daily prizes opened: {stats.prizes}",
+            f"Gamble attempts: {stats.gamble}",
+            f"Galton attempts: {stats.galton}",
+            f"Mine attempts: {stats.mine}",
+            f"Blocks mined: {get_user_blocks_count(username)}",
+            f"Daily reward amount: {database.get_daily_amount_for_user(username)}",
+            f"Max balance recorded: {ledger.get_user_max_balance(username)}"
+        ]
+
+        return await large_respond(message, lines, parse_mode='html')
 
     @router.message(Command("global_stats"))
     async def global_stats_cmd(message: types.Message, ledger: Ledger):
         totals = database.get_total_stats()
-        return await message.answer(
-            f"<b>Global stats:</b>\nDaily prizes opened: {totals["prizes"]}\nGamble attempts: {totals["gamble"]}\nGalton attempts: {totals["galton"]}\nMine attempts: {totals["mine"]}\nBlocks mined: {get_total_users_blocks_count(ledger.genesis_username)}\nDaily reward amount: {database.get_total_daily_amount()}",
-            parse_mode='html'
-        )
+        max_balance = ledger.get_all_max_balances()[1]
+
+        lines = [
+            f"<b>Global stats:</b>",
+            f"Daily prizes opened: {totals["prizes"]}",
+            f"Gamble attempts: {totals["gamble"]}",
+            f"Galton attempts: {totals["galton"]}",
+            f"Mine attempts: {totals["mine"]}",
+            f"Blocks mined: {get_total_users_blocks_count(ledger.genesis_username)}",
+            f"Daily reward amount: {database.get_total_daily_amount()}",
+            f"Max balance recorded ({max_balance[0]}): {max_balance[1]}"
+        ]
+
+        return await large_respond(message, lines, parse_mode='html')
 
     return router

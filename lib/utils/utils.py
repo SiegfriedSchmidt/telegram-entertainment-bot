@@ -4,7 +4,7 @@ import re
 from datetime import datetime, time, timedelta
 from io import BytesIO
 from pathlib import Path
-from typing import List, Iterable, Tuple
+from typing import List, Iterable, Tuple, Protocol
 from aiogram import types
 from aiogram.filters import CommandObject
 
@@ -93,40 +93,48 @@ async def run_in_thread(func, *args):
     return await loop.run_in_executor(None, func, *args)
 
 
-async def large_respond(message: types.Message, obj: str | Iterable[str], timeout=3, characters=2000,
-                        maximum=6, **kwargs) -> bool:
-    if not obj:
+class Stringable(Protocol):
+    def __str__(self) -> str: ...
+
+
+async def large_respond(message: types.Message, printable: Stringable | Iterable[Stringable], timeout=3,
+                        characters=3000, maximum=6, **kwargs) -> bool:
+    if not printable:
         await message.answer("Nothing.")
         return True
-    elif isinstance(obj, str):
-        if len(obj) >= characters * 4:
+    elif not isinstance(printable, Iterable):
+        string = printable if isinstance(printable, str) else str(printable)
+
+        if len(string) >= characters * 4:
             await message.answer("Too large.")
             return False
-        for i in range(0, len(obj), characters):
-            await message.answer(obj[i:i + characters], **kwargs)
+        for i in range(0, len(string), characters):
+            await message.answer(string[i:i + characters], **kwargs)
             await asyncio.sleep(timeout)
-    elif isinstance(obj, Iterable):
+    elif isinstance(printable, Iterable):
         divided_message = []
-        log = ''
+        message_part = ''
         cnt = 0
-        for item in obj:
+        for obj in printable:
+            item = (obj if isinstance(obj, str) else str(obj)) + '\n'
+
             cnt += len(item)
             if cnt >= characters:
-                divided_message.append(log)
-                log = ''
+                divided_message.append(message_part.strip())
+                message_part = ''
                 cnt = len(item)
 
-            log += item
+            message_part += item
 
-        if log:
-            divided_message.append(log)
+        if message_part:
+            divided_message.append(message_part)
 
         if len(divided_message) >= maximum:
             await message.answer("Too large.")
             return False
 
-        for message in divided_message:
-            await message.answer(message, **kwargs)
+        for message_part in divided_message:
+            await message.answer(message_part, **kwargs)
             await asyncio.sleep(timeout)
     else:
         await message.answer("I've get smth else than a str or Iterable.")

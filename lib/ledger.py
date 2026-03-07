@@ -315,6 +315,9 @@ class Ledger:
     def get_all_balances(self):
         return sorted(list(self.__balances.items()), key=lambda item: item[1], reverse=True)
 
+    def get_all_max_balances(self):
+        return sorted(list(self.__max_balances.items()), key=lambda item: item[1], reverse=True)
+
     def delete_pending_transactions(self) -> int:
         self.__revert_balance_transactions(database.get_pending_transactions(ascending=False))
         return database.delete_pending_transactions()
@@ -334,7 +337,7 @@ class Ledger:
     @staticmethod
     def export_transactions_csv() -> str:
         file = StringIO()
-        writer = csv.writer(file, delimiter=' ', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        writer = csv.writer(file, delimiter=' ', quotechar='"')
         writer.writerow(["from_user", "to_user", "amount", "description", "timestamp"])
         for tx in database.get_transactions(ascending=True):
             writer.writerow([

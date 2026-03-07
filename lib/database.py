@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Optional
 from lib.config_reader import config
 from lib.logger import peewee_logger
@@ -40,6 +39,9 @@ class Block(BaseModel):
     prev_hash = CharField(max_length=64)
     block_hash = CharField(max_length=64, unique=True)
 
+    def __str__(self):
+        return f'Block: {self.height}, miner: {self.miner}, nonce: {self.nonce}, hash: {self.block_hash[:16]}...'
+
     class Meta:
         indexes = (
             (('height',), True),
@@ -57,7 +59,7 @@ class Transaction(BaseModel):
     tx_hash = CharField(max_length=64, unique=True)
 
     def __str__(self):
-        return f'{"pending" if self.block is None else self.block} - {self.timestamp}'
+        return f'{self.number}. {"pending" if self.block is None else f"block {self.block}"} - {self.from_user} -> {self.to_user}, {self.amount}, {self.description}'
 
     class Meta:
         indexes = (
