@@ -163,9 +163,14 @@ def create_router():
             return await message.answer('Your daily prize already obtained! Wait for the next day!')
 
     @router.message(Command("ledger"))
-    async def ledger_cmd(message: types.Message):
-        txs = database.get_transactions(limit=50)
+    async def ledger_cmd(message: types.Message, command: CommandObject):
         txs_count = database.get_transactions_count()
+
+        args = get_args(command, 0, 2)
+        limit = int(args[0]) if len(args) >= 1 else 50
+        offset = txs_count - int(args[1]) if len(args) == 2 else None
+
+        txs = database.get_transactions(limit=limit, offset=offset)
         return await large_respond(message, [f"<b>Ledger ({txs_count} transactions):</b>"] + txs, parse_mode='html')
 
     @router.message(Command("leaderboard"))
@@ -186,9 +191,14 @@ def create_router():
         return await message.answer_document(file)
 
     @router.message(Command("blocks"))
-    async def blocks_cmd(message: types.Message):
-        blocks = database.get_blocks(limit=50)
+    async def blocks_cmd(message: types.Message, command: CommandObject):
         blocks_count = database.get_blocks_count()
+
+        args = get_args(command, 0, 2)
+        limit = int(args[0]) if len(args) >= 1 else 50
+        offset = blocks_count - int(args[1]) if len(args) == 2 else None
+
+        blocks = database.get_blocks(limit=limit, offset=offset)
         return await large_respond(message, [f"<b>Blocks list ({blocks_count}):</b>"] + blocks, parse_mode='html')
 
     @router.message(Command("mine_block"))

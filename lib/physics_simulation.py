@@ -1,7 +1,7 @@
-from pathlib import Path
 from matplotlib import animation
 from lib.init import galton_videos_folder_path, galton_assets_folder_path
 from lib.logger import main_logger
+from lib.opencv_custom_writer import OpencvCustomWriter
 from lib.storage import storage
 from typing import Any
 import os
@@ -11,7 +11,6 @@ import pymunk
 import math
 import time
 import cv2
-import subprocess
 
 _viridis_colors = plt.get_cmap('viridis')(np.linspace(0, 1, 256))[:, :3]
 
@@ -61,7 +60,7 @@ class PhysicsSimulation:
         self.DYNAMIC_CATEGORY = 1  # 2 ** 0
         self.STATIC_CATEGORY = 2  # 2 ** 1
         self.lowest_x, self.lowest_y, self.columns = 0, 0, 0
-        self.seed = np.random.randint(2 ** 63 - 1) if seed is None else seed
+        self.seed = np.random.randint((1 << 63) - 1) if seed is None else seed
         self.random = np.random.default_rng(self.seed)
         self.interval = self.dt * self.subsampling
         self.fps = int(1 / self.interval)
@@ -368,30 +367,10 @@ class PhysicsSimulation:
 
     def render_opencv(self, frames: list[list[np.ndarray[tuple[Any, ...]]]], ball_colors: list[tuple[int, int, int]],
                       filename: str, background_path: str = None):
-        t = time.monotonic()
         width, height = int(self.width * self.dpi), int(self.height * self.dpi)
 
-        if storage.ffmpeg_use:
-            video_temp = Path(filename).parent / f"temp_{self.random.integers(0, 1 << 32)}.mkv"
-            writer = cv2.VideoWriter(video_temp, cv2.VideoWriter.fourcc(*'MJPG'), self.fps, (width, height))
+        with OpencvCustomWriter(self.fps, width, height, filename) as writer:
             self.write_frames(writer, frames, ball_colors, width, height, background_path)
-
-            subprocess.run([
-                'ffmpeg', '-y', '-i', video_temp,
-                '-c:v', 'libx264', '-crf', str(storage.ffmpeg_crf), '-preset', storage.ffmpeg_preset,
-                '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
-                # '-c:a', 'aac', '-b:a', '128k',
-                filename
-            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            video_temp.unlink()
-        else:
-            writer = cv2.VideoWriter(filename, cv2.VideoWriter.fourcc(*'avc1'), self.fps, (width, height))
-            self.write_frames(writer, frames, ball_colors, width, height, background_path)
-
-        main_logger.info(
-            f"Galton simulation completed in {time.monotonic() - t:.3f} seconds" +
-            (" (ffmpeg used)" if storage.ffmpeg_use else "")
-        )
 
     def save_background(self, filename: str):
         space, balls = self.setup_space(1)
@@ -403,6 +382,8 @@ class PhysicsSimulation:
         plt.savefig(filename)
 
     def run(self, balls_count: int = 1) -> tuple[float, str, float]:
+        t = time.monotonic()
+
         space, balls = self.setup_space(balls_count)
         ball_collisions_data, ball_collisions_list = self.prepare_ball_collisions_data(balls)
         self.set_pre_solve_for_balls_collisions(space, ball_collisions_data)
@@ -417,6 +398,11 @@ class PhysicsSimulation:
         ball_colors = self.prepare_ball_colors(ball_category, len(categories_count))
 
         self.render_opencv(frames, ball_colors, filename)
+
+        main_logger.info(
+            f"Galton simulation completed in {time.monotonic() - t:.3f} seconds" +
+            (" (ffmpeg used)" if storage.ffmpeg_use else "")
+        )
         return float(multiplier), filename, len(frames) * self.interval
 
     def run_predefined(self, predefined_paths: list[int]):

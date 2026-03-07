@@ -59,7 +59,7 @@ class Transaction(BaseModel):
     tx_hash = CharField(max_length=64, unique=True)
 
     def __str__(self):
-        return f'{self.number}. {"pending" if self.block is None else f"block {self.block}"} - {self.from_user} -> {self.to_user}, {self.amount}, {self.description}'
+        return f'{self.number}. {"pending" if self.block is None else f"block {self.block.height}"} - {self.from_user} -> {self.to_user}, {self.amount}, {self.description}'
 
     class Meta:
         indexes = (
@@ -208,11 +208,12 @@ def get_user_transactions(username: str, limit: Optional[int] = None) -> list[Tr
     )
 
 
-def get_transactions(limit: Optional[int] = None, ascending=False) -> list[Transaction]:
+def get_transactions(offset: Optional[int] = None, limit: Optional[int] = None, ascending=False) -> list[Transaction]:
     transactions = (
         Transaction
         .select()
         .order_by(Transaction.number.asc() if ascending else Transaction.number.desc())
+        .offset(offset)
         .limit(limit)
     )
     users = User.select()
@@ -249,11 +250,12 @@ def get_transactions_count() -> int:
     return Transaction.select().count()
 
 
-def get_blocks(limit: Optional[int] = None, ascending=False) -> list[Block]:
+def get_blocks(offset: Optional[int] = None, limit: Optional[int] = None, ascending=False) -> list[Block]:
     return list(
         Block
         .select()
         .order_by(Block.height.asc() if ascending else Block.height.desc())
+        .offset(offset)
         .limit(limit)
     )
 
