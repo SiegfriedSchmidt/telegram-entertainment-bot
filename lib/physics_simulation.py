@@ -64,7 +64,7 @@ class PhysicsSimulation:
         self.random = np.random.default_rng(self.seed)
         self.interval = self.dt * self.subsampling
         self.fps = int(1 / self.interval)
-        self.manual_coefficients = np.array([500, 450, 30, 9, 3, 1, 0.5, 0.2, 0, 0.2, 0.5, 1, 3, 9, 30, 450, 500])
+        self.manual_coefficients = np.array([999, 400, 30, 9.5, 3, 1, 0.5, 0.2, 0, 0.2, 0.5, 1, 3, 9.5, 30, 400, 999])
 
     def setup_space(self, balls_count: int) -> tuple[pymunk.Space, list[pymunk.Body]]:
         space = pymunk.Space(threaded=self.space_threaded)
@@ -277,22 +277,26 @@ class PhysicsSimulation:
         ]
         return circles
 
-    def prepare_background(self, ax: plt.Axes, space: pymunk.Space, categories_count: list[int]):
-        ax.set_facecolor((176 / 255, 196 / 255, 177 / 255))
+    def prepare_background(self, ax: plt.Axes, space: pymunk.Space, len_categories: int):
+        # ax.set_facecolor((176 / 255, 196 / 255, 177 / 255))
+        # ax.set_facecolor((73 / 255, 151 / 255, 208 / 255))
+        # ax.set_facecolor((97 / 255, 64 / 255, 81 / 255))
+        ax.set_facecolor((140 / 255, 146 / 255, 172 / 255))
 
-        categories_middle = (len(categories_count) - 3) / 2
+        categories_middle = (len_categories - 1) / 2
         cmap = plt.get_cmap("autumn")
         for s in space.static_body.shapes:
             if isinstance(s, pymunk.Circle):
                 ax.add_patch(plt.Circle((s.offset.x, s.offset.y), radius=s.radius, facecolor='black'))
             elif isinstance(s, pymunk.Segment):
-                color = cmap(abs(s.a.x - self.lowest_x - categories_middle * self.gap) / self.gap / categories_middle)
+                idx = np.floor(abs(s.a.x - self.lowest_x - categories_middle * self.gap + 0.5 * self.gap) / self.gap)
+                color = cmap(idx / (categories_middle - 1))
                 ax.plot([s.a.x, s.b.x], [s.a.y, s.b.y], linewidth=s.radius * self.dpi, color=color)
 
-        for i, coef in enumerate(self.manual_coefficients[1:-1]):
+        for i, coef in enumerate(self.manual_coefficients):
             color = cmap(abs(categories_middle - i) / categories_middle)
             ax.text(
-                self.lowest_x + self.gap * i + self.gap * 0.5, self.lowest_y - 0.5, f'{coef:g}',
+                self.lowest_x + self.gap * i - self.gap * 0.5, self.lowest_y - 0.5, f'{coef:g}',
                 fontsize=21,
                 color=color,
                 fontweight='bold',
@@ -356,6 +360,8 @@ class PhysicsSimulation:
             self.save_background(background_path)
 
         background = cv2.imread(background_path)
+        cv2.putText(background, str(len(ball_colors)), (7, 80), cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 255, 255), 2,
+                    cv2.LINE_AA)
         for circle in frames:
             frame = background.copy()
             for idx, pos in enumerate(circle):
@@ -378,7 +384,7 @@ class PhysicsSimulation:
         self.set_pre_solve_for_balls_collisions(space, ball_collisions_data)
         positions, ball_category, categories_count = self.simulate(space, balls)
         fig, ax = self.prepare_figure()
-        self.prepare_background(ax, space, categories_count)
+        self.prepare_background(ax, space, len(categories_count))
         plt.savefig(filename)
 
     def run(self, balls_count: int = 1) -> tuple[float, str, float]:
@@ -424,4 +430,5 @@ if __name__ == '__main__':
     # physics_simulation.save_background(galton_folder_path / "background.png")
     paths = ["0" * (16 - i) + "1" * i for i in range(17)]
     paths = [int(p, 2) for p in paths]
-    physics_simulation.run_predefined(paths)
+    physics_simulation.run(222)
+    # physics_simulation.run_predefined(paths)
