@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import json
+import time
 from threading import Lock
 from decimal import Decimal
 from datetime import datetime
@@ -118,6 +119,7 @@ class Ledger:
             )
 
     def load_and_verify_chain(self):
+        t = time.monotonic()
         self.__balances.clear()
 
         with db.atomic():
@@ -181,11 +183,15 @@ class Ledger:
                 self.__update_balance_transactions(txs)
                 prev_hash = computed_hash
 
-        ledger_logger.info(
-            f"Blockchain verified! {database.get_blocks_count()} blocks loaded. {database.get_transactions_count()} transactions loaded. Users with balance: {len(self.__balances)}"
-        )
         self.__update_balance_transactions(database.get_pending_transactions(ascending=True))
         self.mine_block()
+
+        ledger_logger.info(
+            f"Blockchain verified in {time.monotonic() - t:.3f} seconds! "
+            f"{database.get_blocks_count()} blocks loaded. "
+            f"{database.get_transactions_count()} transactions loaded. "
+            f"Users with balance: {len(self.__balances)}"
+        )
 
     def mine_block(self, miner_username: str = None, nonce: int = None) -> Block | None:
         if miner_username is None:

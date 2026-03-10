@@ -112,9 +112,9 @@ class Gambler:
         gain = int(gamble_multipliers[gain_type] * bet)
 
         database.update_user_stats(user.username, StatsType.gamble)
-        self.ledger.record_deposit(user.username, bet, "bet")
+        self.ledger.record_deposit(user.username, bet, "Gamble bet")
         if gain:
-            self.ledger.record_gain(user.username, gain, f"Gamble {gain_type.value}")
+            self.ledger.record_gain(user.username, gain, f"Gamble gain X{gamble_multipliers[gain_type]}")
 
         await asyncio.sleep(1.5)
         return await self.show_win_message(dice_msg, gain_type, self.get_balance_str(user.username))
@@ -139,25 +139,24 @@ class Gambler:
 
         user.galton_bet = bet
         user.galton_balls = balls
-        database.update_user_stats(user.username, StatsType.galton)
-        self.ledger.record_deposit(user.username, bet, "bet")
-
         user.galton_running_count += 1
+        database.update_user_stats(user.username, StatsType.galton)
+        self.ledger.record_deposit(user.username, bet, "Galton bet")
+
         physics_simulation = PhysicsSimulation()
         multiplier, filename, duration = await run_in_thread(physics_simulation.run, balls)
-        user.galton_running_count -= 1
-
-        gain = int(multiplier * bet_per_ball)
-        multiplier = round(multiplier / balls, 2)
-
-        if gain:
-            self.ledger.record_gain(user.username, gain, f"Galton X{multiplier}")
 
         await wait_msg.delete()
         animation = FSInputFile(filename, filename=str(filename))
         galton_msg = await message.reply_animation(animation)
-
         await asyncio.sleep(duration + 2)
+
+        user.galton_running_count -= 1
+        gain = int(multiplier * bet_per_ball)
+        multiplier = round(multiplier / balls, 2)
+        if gain:
+            self.ledger.record_gain(user.username, gain, f"Galton gain X{multiplier}")
+
         return await galton_msg.reply(f"Multiplier X{multiplier}! {self.get_balance_str(user.username)}")
 
     async def daily_prize(self, message: types.Message):
