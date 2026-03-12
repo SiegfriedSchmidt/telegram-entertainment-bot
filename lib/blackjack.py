@@ -102,7 +102,11 @@ class Blackjack:
         self.ledger = ledger
         self.username = username
         self.bet = int(bet)
+        self.process_bet()
 
+    def process_bet(self):
+        if self.bet < 100:
+            raise RuntimeError("Bet should be more than 100!")
         self.ledger.record_deposit(self.username, self.bet, "Blackjack bet")
 
     def get_random_card(self) -> str:

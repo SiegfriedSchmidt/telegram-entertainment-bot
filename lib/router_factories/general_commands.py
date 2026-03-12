@@ -11,7 +11,7 @@ from lib.blackjack import Blackjack
 from lib.bot_commands import text_bot_general_commands, text_bot_admin_commands
 from lib.config_reader import config
 from lib.database import get_user_blocks_count, get_total_users_blocks_count
-from lib.keyboards.blackjack_keyboard import blackjack_keyboard_builder
+from lib.keyboards.blackjack_keyboard import get_blackjack_keyboard
 from lib.ledger import Ledger, BlockNotMined
 from lib.api.gemini_api import gemini_api
 from lib.api.joke_api import get_joke
@@ -128,7 +128,7 @@ def create_router():
         return await message.reply_photo(
             image,
             caption=f"Blackjack game session started with bet {bet}! Good luck...",
-            reply_markup=blackjack_keyboard_builder.as_markup()
+            reply_markup=get_blackjack_keyboard(user.username)
         )
 
     @router.message(Command("balance"))

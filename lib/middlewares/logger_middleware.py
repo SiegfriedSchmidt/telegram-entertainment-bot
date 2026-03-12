@@ -1,5 +1,5 @@
 from aiogram import BaseMiddleware
-from aiogram.types import Message
+from aiogram.types import Message, User
 from typing import Callable, Dict, Any, Awaitable
 from lib.logger import main_logger
 
@@ -11,7 +11,7 @@ class LoggerMiddleware(BaseMiddleware):
             event: Message,
             data: Dict[str, Any]
     ) -> Any:
-        user_data = data['event_from_user']
+        user_data: User = data['event_from_user']
 
         main_logger.info(
             f"id: {user_data.id}, "
