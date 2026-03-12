@@ -11,6 +11,7 @@ from lib.blackjack import Blackjack
 from lib.bot_commands import text_bot_general_commands, text_bot_admin_commands
 from lib.config_reader import config
 from lib.database import get_user_blocks_count, get_total_users_blocks_count
+from lib.keyboards.blackjack_keyboard import blackjack_keyboard_builder
 from lib.ledger import Ledger, BlockNotMined
 from lib.api.gemini_api import gemini_api
 from lib.api.joke_api import get_joke
@@ -111,19 +112,23 @@ def create_router():
         return await gambler.galton(message, user, bet, balls)
 
     @router.message(Command("blackjack"))
-    async def blackjack_cmd(message: types.Message, command: CommandObject, state: FSMContext, user: User):
+    async def blackjack_cmd(message: types.Message, command: CommandObject, state: FSMContext, user: User,
+                            ledger: Ledger):
         args = get_args(command, 0, 1)
         bet = args[0] if len(args) == 1 else user.blackjack_bet
 
-        blackjack = Blackjack()
+        blackjack = Blackjack(ledger, user.username, bet)
         filename = blackjack.start()
         image = FSInputFile(filename, filename=str(filename))
+        user.blackjack_bet = bet
 
         await state.set_state(BlackjackState.blackjack_activated)
-        await state.set_data({"blackjack": blackjack, "bet": bet})
+        await state.set_data({"blackjack": blackjack})
+
         return await message.reply_photo(
             image,
-            caption=f"Blackjack game session started with bet {bet}! In this state you can only do /hit or /stand. Good luck..."
+            caption=f"Blackjack game session started with bet {bet}! Good luck...",
+            reply_markup=blackjack_keyboard_builder.as_markup()
         )
 
     @router.message(Command("balance"))

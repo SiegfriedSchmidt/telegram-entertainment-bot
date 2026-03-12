@@ -3,8 +3,9 @@ import cv2
 import numpy as np
 import random as rnd
 import math
-from typing import Literal
 from lib.init import blackjack_assets_folder_path, blackjack_videos_folder_path
+from lib.ledger import Ledger
+from lib.models import BlackjackResultType
 
 table = cv2.imread(blackjack_assets_folder_path / "background.jpg", cv2.IMREAD_UNCHANGED)
 table = cv2.resize(table, (int(table.shape[0] / 5), int(table.shape[1] / 5)))
@@ -94,10 +95,15 @@ def calculate_score(hand: list[str]) -> int:
 
 
 class Blackjack:
-    def __init__(self):
+    def __init__(self, ledger: Ledger, username: str, bet: str | int):
         self.deck: set[str] = set(cards.keys())
         self.dealer_hand: list[str] = []
         self.player_hand: list[str] = []
+        self.ledger = ledger
+        self.username = username
+        self.bet = int(bet)
+
+        self.ledger.record_deposit(self.username, self.bet, "Blackjack bet")
 
     def get_random_card(self) -> str:
         card = rnd.choice(tuple(self.deck))
@@ -110,6 +116,27 @@ class Blackjack:
         filename = blackjack_videos_folder_path / f"{random.randint(0, 1 << 31)}.png"
         cv2.imwrite(filename, image)
         return filename
+
+    @staticmethod
+    def _get_caption_and_multiplier(result: BlackjackResultType) -> tuple[str, float]:
+        match result:
+            case BlackjackResultType.win:
+                return "You won", 1.75
+            case BlackjackResultType.draw:
+                return "It's a draw", 1
+            case BlackjackResultType.surrender:
+                return "You surrendered", 0.5
+            case BlackjackResultType.lose:
+                return "You lost", 0
+            case BlackjackResultType.bust:
+                return "You busted", 0
+
+    def get_caption_and_record_gain(self, result: BlackjackResultType) -> str:
+        caption, multiplier = self._get_caption_and_multiplier(result)
+        gain = int(self.bet * multiplier)
+        if gain:
+            self.ledger.record_gain(self.username, gain, f"Blackjack gain X{multiplier}")
+        return caption + f" X{multiplier}! {self.username}: {self.ledger.get_user_balance(self.username)}."
 
     def start(self) -> str:
         self.dealer_hand.append(self.get_random_card())
@@ -125,7 +152,7 @@ class Blackjack:
         score = calculate_score(self.player_hand)
         return filename, score > 21
 
-    def stand(self) -> tuple[str, Literal["win", "draw", "lose"]]:
+    def stand(self) -> tuple[str, BlackjackResultType]:
         player_score = calculate_score(self.player_hand)
         dealer_score = calculate_score(self.dealer_hand)
 
@@ -136,11 +163,11 @@ class Blackjack:
         filename = self.write_image(self.render_stand())
 
         if dealer_score > 21 or dealer_score < player_score:
-            return filename, "win"
+            return filename, BlackjackResultType.win
         elif dealer_score == player_score:
-            return filename, "draw"
+            return filename, BlackjackResultType.draw
         else:
-            return filename, "lose"
+            return filename, BlackjackResultType.lose
 
     def render_stand(self) -> np.ndarray:
         card_pad = card_size[0]
@@ -179,25 +206,3 @@ class Blackjack:
 
         for j, card in enumerate(self.player_hand):
             draw_card(frame, get_pos(j), card, 1)
-
-
-def main():
-    blackjack = Blackjack()
-    print(blackjack.start())
-
-    while True:
-        val = input("hit or stand:")
-        if val == "hit":
-            filename, lose = blackjack.hit()
-            print(filename)
-            if lose:
-                print("You defeated!")
-                break
-        elif val == "stand":
-            print(blackjack.stand())
-        else:
-            break
-
-
-if __name__ == '__main__':
-    main()

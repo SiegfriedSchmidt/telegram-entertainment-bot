@@ -1,7 +1,7 @@
 from aiogram import Router
 from aiogram.types import ErrorEvent
 from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
-
+from lib.ledger import LedgerError
 from lib.logger import main_logger
 
 router = Router()
@@ -23,7 +23,7 @@ async def error_handler(event: ErrorEvent):
             await safe_send(event.update, f"Telegram rejected the message. {str(exception)}")
     elif isinstance(exception, TelegramAPIError):
         await safe_send(event.update, f"Telegram server is having a moment. {str(exception)}")
-    elif isinstance(exception, RuntimeError):
+    elif isinstance(exception, RuntimeError) or isinstance(exception, LedgerError):
         return await event.update.message.reply(str(exception))
     else:
         await safe_send(event.update, f"Unknown error occurred. {str(exception)}")

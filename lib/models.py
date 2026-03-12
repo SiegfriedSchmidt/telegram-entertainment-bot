@@ -48,6 +48,14 @@ class TerminalType(str, BaseEnum):
     image = 'image'
 
 
+class BlackjackResultType(str, BaseEnum):
+    win = 'win'
+    draw = 'draw'
+    lose = 'lose'
+    bust = 'bust'
+    surrender = 'surrender'
+
+
 class GainType(str, BaseEnum):
     big_jackpot = 'big_jackpot'
     jackpot = 'jackpot'
