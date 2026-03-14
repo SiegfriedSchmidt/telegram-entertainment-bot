@@ -18,9 +18,9 @@ class TemporalStorage:
     def __init__(self):
         self._users: dict[int, User] = dict()
 
-    def get_user(self, user_id: int, user_username: str) -> User:
+    def get_user(self, user_id: int, user_username: str = '') -> User:
         if user_id not in self._users:
-            self._users[user_id] = User(
+            user = User(
                 username=user_username,
                 host=config.main_host.get_secret_value(),
                 nonce=random.randint(1, 1000),
@@ -30,7 +30,12 @@ class TemporalStorage:
                 galton_balls=1,
                 galton_running_count=0
             )
-        return self._users[user_id]
+            if user_username:
+                self._users[user_id] = user
+        else:
+            user = self._users[user_id]
+
+        return user
 
 
 temporal_storage = TemporalStorage()

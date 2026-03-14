@@ -1,19 +1,38 @@
 from aiogram import Router, F, types
+from aiogram.fsm.context import FSMContext
 from aiogram.types import ReactionTypeEmoji
 from lib.config_reader import config
 from lib.gambler import Gambler
+from lib.ledger import Ledger
 from lib.middlewares.user_middleware import UserMiddleware
-from lib.temporal_storage import User
+from lib.states.confirmation_state import ConfirmationState
+from lib.temporal_storage import User, temporal_storage
 
 router = Router()
 router.message.middleware(UserMiddleware())
 
 
 @router.message(F.text.contains('admin'))
-async def admin_message(message: types.Message):
-    for chat_id in config.notification_ids:
-        await message.bot.send_message(chat_id, f'{message.from_user.username} summoning you!')
-    return await message.reply(f"Кто-то сказал admin?!")
+async def admin_message(message: types.Message, state: FSMContext):
+    await state.set_state(ConfirmationState.admin_call_confirmation)
+    return await message.reply(f"Did someone say admin?! Calling admin will cost 1000$. (y/n)")
+
+
+@router.message(ConfirmationState.admin_call_confirmation)
+async def admin_call(message: types.Message, state: FSMContext, ledger: Ledger):
+    await state.clear()
+    if message.text.lower() == "y":
+        from_username = message.from_user.username
+        for chat_id in config.notification_ids:
+            to_username = temporal_storage.get_user(chat_id).username
+            if not to_username:
+                raise RuntimeError("User not found")
+
+            ledger.record_transaction(from_username, to_username, 1000, "Admin call")
+            await message.bot.send_message(chat_id, f'{from_username} summoning you!')
+        await message.answer('fine')
+    else:
+        await message.answer('abort')
 
 
 @router.message(F.text.lower().contains('bipki') | F.text.lower().contains('бипки'))
