@@ -1,6 +1,5 @@
 from aiogram import Bot
 from aiogram.types import BotCommand, BotCommandScopeChatMember
-
 from lib.config_reader import config
 
 bot_general_commands = [
@@ -24,6 +23,7 @@ bot_general_commands = [
     BotCommand(command='explore_block', description='{height: required} explore block'),
     BotCommand(command='user_stats', description='{username: optional} get user stats'),
     BotCommand(command='global_stats', description='get global stats'),
+    BotCommand(command='galton_background', description='set galton board background'),
 ]
 
 bot_admin_commands = [

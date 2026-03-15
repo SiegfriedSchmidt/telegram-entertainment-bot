@@ -44,10 +44,14 @@ def create_router():
     @router.callback_query(BlackjackCallback.filter(F.action == "surrender"))
     async def surrender_cmd(callback: types.CallbackQuery, state: FSMContext):
         blackjack: Blackjack = (await state.get_data()).get("blackjack")
+        filename = blackjack.surrender()
         caption = blackjack.get_caption_and_record_gain(BlackjackResultType.surrender)
+
+        image = FSInputFile(filename, filename=str(filename))
+        media = InputMediaPhoto(media=image, caption=caption)
         await state.clear()
 
-        return await callback.message.edit_caption(caption=caption)
+        return await callback.message.edit_media(media)
 
     @router.message(F.text.startswith("/"))
     async def command_cmd(message: types.Message):

@@ -1,14 +1,12 @@
-import random
 import cv2
 import numpy as np
-import random as rnd
 import math
+import random
 from lib.init import blackjack_assets_folder_path, blackjack_videos_folder_path
 from lib.ledger import Ledger
 from lib.models import BlackjackResultType
 
-table = cv2.imread(blackjack_assets_folder_path / "background.jpg", cv2.IMREAD_UNCHANGED)
-table = cv2.resize(table, (int(table.shape[0] / 5), int(table.shape[1] / 5)))
+table = cv2.imread(blackjack_assets_folder_path / "background.png", cv2.IMREAD_UNCHANGED)
 
 table_w, table_h = table.shape[1], table.shape[0]
 table_c = table_w // 2, table_h // 2
@@ -96,7 +94,9 @@ def calculate_score(hand: list[str]) -> int:
 
 class Blackjack:
     def __init__(self, ledger: Ledger, username: str, bet: str | int):
-        self.deck: set[str] = set(cards.keys())
+        self.deck: list[str] = list(cards.keys())
+        random.shuffle(self.deck)
+
         self.dealer_hand: list[str] = []
         self.player_hand: list[str] = []
         self.ledger = ledger
@@ -110,9 +110,7 @@ class Blackjack:
         self.ledger.record_deposit(self.username, self.bet, "Blackjack bet")
 
     def get_random_card(self) -> str:
-        card = rnd.choice(tuple(self.deck))
-        self.deck.remove(card)
-        return card
+        return self.deck.pop()
 
     @staticmethod
     def write_image(image: np.ndarray) -> str:
@@ -146,14 +144,19 @@ class Blackjack:
         self.dealer_hand.append(self.get_random_card())
         self.player_hand.append(self.get_random_card())
         self.player_hand.append(self.get_random_card())
-        return self.write_image(self.render_initial())
+        return self.write_image(self.render_hands())
 
     def hit(self) -> tuple[str, bool]:
-        new_card = self.get_random_card()
-        filename = self.write_image(self.render_hit(new_card))
-        self.player_hand.append(new_card)
+        self.player_hand.append(self.get_random_card())
         score = calculate_score(self.player_hand)
-        return filename, score > 21
+        lose = score > 21
+
+        filename = self.write_image(self.render_hands(dealer_open=lose))
+        return filename, lose
+
+    def surrender(self) -> str:
+        filename = self.write_image(self.render_hands(dealer_open=True))
+        return filename
 
     def stand(self) -> tuple[str, BlackjackResultType]:
         player_score = calculate_score(self.player_hand)
@@ -163,7 +166,7 @@ class Blackjack:
             self.dealer_hand.append(self.get_random_card())
             dealer_score = calculate_score(self.dealer_hand)
 
-        filename = self.write_image(self.render_stand())
+        filename = self.write_image(self.render_hands(dealer_open=True))
 
         if dealer_score > 21 or dealer_score < player_score:
             return filename, BlackjackResultType.win
@@ -172,7 +175,8 @@ class Blackjack:
         else:
             return filename, BlackjackResultType.lose
 
-    def render_stand(self) -> np.ndarray:
+    def render_hands(self, dealer_open=False) -> np.ndarray:
+        frame = table.copy()
         card_pad = card_size[0]
         start_pos = math.floor((table_w - card_pad * len(self.dealer_hand)) / 2)
 
@@ -180,32 +184,11 @@ class Blackjack:
             card_pad = math.floor((table_w - card_size[0]) / (len(self.dealer_hand) - 1))
             start_pos = 0
 
-        image = table.copy()
-        self.render_hands(image, dealer=False)
         for j, card in enumerate(self.dealer_hand):
             target_pos = start_pos + card_pad * j, 100
-            draw_card(image, target_pos, card)
-
-            # cv2.imshow("frame", frame)
-            # cv2.waitKey(10)
-        return image
-
-    def render_hit(self, new_card: str) -> np.ndarray:
-        image = table.copy()
-        self.render_hands(image)
-        draw_card(image, get_pos(len(self.player_hand)), new_card)
-
-        return image
-
-    def render_initial(self) -> np.ndarray:
-        image = table.copy()
-        self.render_hands(image)
-        return image
-
-    def render_hands(self, frame: np.ndarray, dealer=True):
-        if dealer:
-            draw_card(frame, (table_c[0] - card_size[0], 100), self.dealer_hand[0], 1)
-            draw_card(frame, (table_c[0], 100))
+            draw_card(frame, target_pos, card if j < len(self.dealer_hand) - 1 or dealer_open else None)
 
         for j, card in enumerate(self.player_hand):
             draw_card(frame, get_pos(j), card, 1)
+
+        return frame
