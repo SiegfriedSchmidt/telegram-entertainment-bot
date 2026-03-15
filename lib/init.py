@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-bot_version = '0.2.2v beta'
+bot_version = '0.2.3v beta'
 
 secret_folder_path = Path(os.environ.get("SECRET_FOLDER_PATH", "./.secret"))
 data_folder_path = Path(os.environ.get("DATA_FOLDER_PATH", "./data"))
@@ -23,9 +23,18 @@ settings_file_path = secret_folder_path / "settings.json"
 
 persistent_file_path = data_folder_path / "persistent_data.json"
 database_file_path = data_folder_path / "database.sqlite"
+
 videos_folder_path = data_folder_path / "videos"
-galton_videos_folder_path = data_folder_path / "galton"
+videos_folder_path.mkdir(exist_ok=True)
+
+galton_videos_folder_path = data_folder_path / "galton_videos"
+galton_videos_folder_path.mkdir(exist_ok=True)
+
+galton_backgrounds_folder_path = data_folder_path / "galton_backgrounds"
+galton_backgrounds_folder_path.mkdir(exist_ok=True)
+
 blackjack_videos_folder_path = data_folder_path / "blackjack"
+blackjack_videos_folder_path.mkdir(exist_ok=True)
 
 fonts_folder_path = assets_folder_path / "fonts"
 blackjack_assets_folder_path = assets_folder_path / "blackjack"

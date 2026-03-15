@@ -8,3 +8,4 @@ class ConfirmationState(StatesGroup):
     clear_videos_confirmation = State()
     transfer_confirmation = State()
     admin_call_confirmation = State()
+    galton_background_confirmation = State()

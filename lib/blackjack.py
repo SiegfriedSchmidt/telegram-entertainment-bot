@@ -116,7 +116,6 @@ class Blackjack:
 
     @staticmethod
     def write_image(image: np.ndarray) -> str:
-        blackjack_videos_folder_path.mkdir(exist_ok=True)
         filename = blackjack_videos_folder_path / f"{random.randint(0, 1 << 31)}.png"
         cv2.imwrite(filename, image)
         return filename

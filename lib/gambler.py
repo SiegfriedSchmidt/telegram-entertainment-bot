@@ -144,7 +144,8 @@ class Gambler:
         self.ledger.record_deposit(user.username, bet, "Galton bet")
 
         physics_simulation = PhysicsSimulation()
-        multiplier, filename, duration = await run_in_thread(physics_simulation.run, balls)
+        background_path = database.get_galton_background_path(user.username)
+        multiplier, filename, duration = await run_in_thread(physics_simulation.run, balls, background_path)
 
         await wait_msg.delete()
         animation = FSInputFile(filename, filename=str(filename))

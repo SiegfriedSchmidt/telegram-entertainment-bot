@@ -1,7 +1,8 @@
-from lib.init import galton_videos_folder_path
+from lib.init import galton_videos_folder_path, galton_backgrounds_folder_path
 from lib.logger import main_logger
 from lib.opencv_custom_writer import OpencvCustomWriter
 from lib.storage import storage
+from pathlib import Path
 from typing import Any
 import numpy as np
 import matplotlib.pyplot as plt
@@ -195,7 +196,7 @@ class PhysicsSimulation:
             values = np.arange(probabilities.size)
         E = np.sum(values * probabilities)
         E2 = np.sum(values ** 2 * probabilities)
-        Var = E2 - E ** 2
+        Var = float(E2) - E ** 2
         return E, Var
 
     def compute_probabilities(self, categories_count: list[int]):
@@ -303,6 +304,15 @@ class PhysicsSimulation:
                 int((self.height - (self.lowest_y - 0.5)) * self.dpi + text_size[1] / 2)
             )
             cv2.putText(image, text, pos, font, font_scale, color, thickness)
+
+    def get_test_background(self, background_path: str = None) -> Path:
+        space = self.setup_space(1)[0]
+        width, height = int(self.width * self.dpi), int(self.height * self.dpi)
+        background = cv2.resize(cv2.imread(background_path), (width, height))
+        self.draw_background(space, background)
+        filename = galton_backgrounds_folder_path / f"{self.random.integers(0, 1 << 31)}.png"
+        cv2.imwrite(filename, background)
+        return filename
 
     def prepare_ball_colors(self, ball_category: list[int], len_categories: int) -> list[tuple[int, int, int]]:
         ball_colors = list()

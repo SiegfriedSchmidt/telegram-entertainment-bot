@@ -1,5 +1,6 @@
 import asyncio
 from itertools import chain
+from pathlib import Path
 from aiogram import Router, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject
@@ -10,7 +11,7 @@ from lib import database
 from lib.blackjack import Blackjack
 from lib.bot_commands import text_bot_general_commands, text_bot_admin_commands
 from lib.config_reader import config
-from lib.database import get_user_blocks_count, get_total_users_blocks_count
+from lib.init import galton_backgrounds_folder_path
 from lib.keyboards.blackjack_keyboard import get_blackjack_keyboard
 from lib.ledger import Ledger, BlockNotMined
 from lib.api.gemini_api import gemini_api
@@ -19,6 +20,7 @@ from lib.api.meme_api import get_meme
 from lib.api.geoip_api import geoip
 from lib.gambler import Gambler
 from lib.middlewares.user_middleware import UserMiddleware
+from lib.physics_simulation import PhysicsSimulation
 from lib.states.blackjack_state import BlackjackState
 from lib.states.confirmation_state import ConfirmationState
 from lib.storage import storage
@@ -168,7 +170,7 @@ def create_router():
 
     @router.message(ConfirmationState.transfer_confirmation)
     async def transfer(message: types.Message, state: FSMContext, ledger: Ledger):
-        if message.text == "y":
+        if message.text.lower() == "y":
             state_data = await state.get_data()
             to_user, amount = state_data["to_user"], state_data["amount"]
             from_user = message.from_user.username
@@ -309,7 +311,7 @@ def create_router():
             f"Gamble attempts: {stats.gamble}",
             f"Galton attempts: {stats.galton}",
             f"Mine attempts: {stats.mine}",
-            f"Blocks mined: {get_user_blocks_count(username)}",
+            f"Blocks mined: {database.get_user_blocks_count(username)}",
             f"Daily reward amount: {database.get_daily_amount_for_user(username)}",
             f"Max balance recorded: {ledger.get_user_max_balance(username)}"
         ]
@@ -327,11 +329,47 @@ def create_router():
             f"Gamble attempts: {totals["gamble"]}",
             f"Galton attempts: {totals["galton"]}",
             f"Mine attempts: {totals["mine"]}",
-            f"Blocks mined: {get_total_users_blocks_count(ledger.genesis_username)}",
+            f"Blocks mined: {database.get_total_users_blocks_count(ledger.genesis_username)}",
             f"Daily reward amount: {database.get_total_daily_amount()}",
             f"Max balance recorded ({max_balance[0]}): {max_balance[1]}"
         ]
 
         return await large_respond(message, lines, parse_mode='html')
+
+    @router.message(Command("galton_background"))
+    async def galton_background_cmd(message: types.Message, state: FSMContext):
+        if not message.reply_to_message or message.reply_to_message.photo is None:
+            return await message.answer("You need to reply to a message with image!")
+
+        photo = message.reply_to_message.photo[-1]
+        file = await message.bot.get_file(photo.file_id)
+        username = message.from_user.username
+        filename = galton_backgrounds_folder_path / f"{username}-temp.png"
+        await message.bot.download_file(file.file_path, filename)
+
+        background_filename = PhysicsSimulation().get_test_background(filename)
+        background_file = FSInputFile(str(background_filename), filename=filename.name)
+        await message.answer_photo(
+            background_file, caption=f"Do you want to install this background image for 1000 (y/n)?"
+        )
+        background_filename.unlink()
+        await state.set_data({"filename": filename})
+        return await state.set_state(ConfirmationState.galton_background_confirmation)
+
+    @router.message(ConfirmationState.galton_background_confirmation)
+    async def galton_background(message: types.Message, state: FSMContext, ledger: Ledger):
+        if message.text.lower() == "y":
+            tmp_filename: Path = (await state.get_data()).get("filename")
+            from_user = message.from_user.username
+            ledger.record_deposit(from_user, 1000, "Background galton")
+
+            filename = tmp_filename.parent / f"{from_user}.png"
+            tmp_filename.rename(filename)
+
+            database.set_galton_background_path(from_user, str(filename))
+            await message.answer(f"Successfully set galton background!")
+        else:
+            await message.answer('abort')
+        await state.clear()
 
     return router
