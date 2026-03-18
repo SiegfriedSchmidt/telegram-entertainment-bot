@@ -68,3 +68,5 @@ class StatsType(str, BaseEnum):
     mine = 'mine'
     gamble = 'gamble'
     galton = 'galton'
+    blackjack_win = 'blackjack_win'
+    blackjack_all = 'blackjack_all'

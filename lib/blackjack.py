@@ -4,7 +4,8 @@ import math
 import random
 from lib.init import blackjack_assets_folder_path, blackjack_videos_folder_path
 from lib.ledger import Ledger
-from lib.models import BlackjackResultType
+from lib.models import BlackjackResultType, StatsType
+from lib import database
 
 table = cv2.imread(blackjack_assets_folder_path / "background.png", cv2.IMREAD_UNCHANGED)
 
@@ -137,6 +138,11 @@ class Blackjack:
         gain = int(self.bet * multiplier)
         if gain:
             self.ledger.record_gain(self.username, gain, f"Blackjack gain X{multiplier}")
+
+        database.update_user_stats(
+            self.username,
+            StatsType.blackjack_win if result == BlackjackResultType.win else StatsType.blackjack_all
+        )
         return caption + f" X{multiplier}! {self.username}: {self.ledger.get_user_balance(self.username)}."
 
     def start(self) -> str:

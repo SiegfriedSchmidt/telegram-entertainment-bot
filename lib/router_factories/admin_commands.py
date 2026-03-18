@@ -82,9 +82,7 @@ def create_router():
     @router.message(Command("prune"))
     async def prune_cmd(message: types.Message, user: User):
         result = ssh_manager[user.host].docker_prune()
-        if result:
-            return await message.answer(result)
-        return await message.answer('no output')
+        return await large_respond(message, result)
 
     @router.message(Command("update"))
     async def update_cmd(message: types.Message, state: FSMContext):

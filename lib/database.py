@@ -6,7 +6,6 @@ from lib.init import database_file_path, migrations_folder_path
 from lib.models import StatsType
 from lib.storage import storage
 from lib.utils.utils import used_today
-from peewee_migrate import Router
 from peewee import *
 
 db = SqliteDatabase(database_file_path)
@@ -30,6 +29,8 @@ class Stats(BaseModel):
     mine = IntegerField(default=0)
     gamble = IntegerField(default=0)
     galton = IntegerField(default=0)
+    blackjack_win = IntegerField(default=0)
+    blackjack_all = IntegerField(default=0)
 
 
 class Block(BaseModel):
@@ -70,10 +71,6 @@ class Transaction(BaseModel):
 
 
 db.connect()
-
-# run migrations
-router = Router(db, migrate_dir=migrations_folder_path)
-router.run()
 
 # create tables
 db.create_tables([User, Stats, Block, Transaction])
@@ -191,6 +188,11 @@ def update_user_stats(user_or_name: str | User, stat_type: StatsType, increment:
             stats.gamble += increment
         case StatsType.galton:
             stats.galton += increment
+        case StatsType.blackjack_win:
+            stats.blackjack_win += increment
+            stats.blackjack_all += increment
+        case StatsType.blackjack_all:
+            stats.blackjack_all += increment
 
     stats.save()
 
@@ -285,4 +287,4 @@ def get_blocks_count() -> int:
 
 
 if __name__ == '__main__':
-    router.create('add_galton_background_path')
+    ...

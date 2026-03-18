@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-bot_version = '0.2.3v beta'
+bot_version = '0.2.5v beta'
 
 secret_folder_path = Path(os.environ.get("SECRET_FOLDER_PATH", "./.secret"))
 data_folder_path = Path(os.environ.get("DATA_FOLDER_PATH", "./data"))

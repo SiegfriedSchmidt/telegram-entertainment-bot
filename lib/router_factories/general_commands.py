@@ -305,12 +305,17 @@ def create_router():
         if stats is None:
             return await message.answer(f"No statistic for {username} found!")
 
+        blackjack_winrate = f"{stats.blackjack_win / stats.blackjack_all:.1%}" if stats.blackjack_win != 0 else "inf"
+
         lines = [
             f"<b>{username} stats:</b>",
             f"Daily prizes opened: {stats.prizes}",
             f"Gamble attempts: {stats.gamble}",
             f"Galton attempts: {stats.galton}",
             f"Mine attempts: {stats.mine}",
+            f"Blackjack games played: {stats.blackjack_all}",
+            f"Blackjack wins: {stats.blackjack_win}",
+            f"Blackjack win rate: {blackjack_winrate}",
             f"Blocks mined: {database.get_user_blocks_count(username)}",
             f"Daily reward amount: {database.get_daily_amount_for_user(username)}",
             f"Max balance recorded: {ledger.get_user_max_balance(username)}"
