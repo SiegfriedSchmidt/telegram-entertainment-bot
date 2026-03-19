@@ -309,7 +309,7 @@ def create_router():
         if stats is None:
             return await message.answer(f"No statistic for {username} found!")
 
-        blackjack_winrate = f"{stats.blackjack_win / stats.blackjack_all:.1%}" if stats.blackjack_all != 0 else "inf"
+        blackjack_winrate = f"{stats.blackjack_win / stats.blackjack_all:.1%}" if stats.blackjack_all != 0 else "undefined"
 
         lines = [
             f"<b>{username} stats:</b>",
@@ -332,12 +332,18 @@ def create_router():
         totals = database.get_total_stats()
         max_balance = ledger.get_all_max_balances()[1]
 
+        blackjack_winrate = f"{totals["blackjack_win"] / totals["blackjack_all"]:.1%}" \
+            if totals["blackjack_all"] != 0 else "undefined"
+
         lines = [
             f"<b>Global stats:</b>",
             f"Daily prizes opened: {totals["prizes"]}",
             f"Gamble attempts: {totals["gamble"]}",
             f"Galton attempts: {totals["galton"]}",
             f"Mine attempts: {totals["mine"]}",
+            f"Blackjack games played: {totals["blackjack_all"]}",
+            f"Blackjack wins: {totals["blackjack_win"]}",
+            f"Blackjack win rate: {blackjack_winrate}",
             f"Blocks mined: {database.get_total_users_blocks_count(ledger.genesis_username)}",
             f"Daily reward amount: {database.get_total_daily_amount()}",
             f"Max balance recorded ({max_balance[0]}): {max_balance[1]}"

@@ -149,6 +149,8 @@ def get_total_stats():
             fn.SUM(Stats.mine).alias('mine'),
             fn.SUM(Stats.gamble).alias('gamble'),
             fn.SUM(Stats.galton).alias('galton'),
+            fn.SUM(Stats.blackjack_win).alias('blackjack_win'),
+            fn.SUM(Stats.blackjack_all).alias('blackjack_all'),
         )
         .scalar(as_dict=True)
     )
