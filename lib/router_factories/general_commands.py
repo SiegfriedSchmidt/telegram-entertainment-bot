@@ -125,14 +125,15 @@ def create_router():
         image = FSInputFile(filename, filename=str(filename))
         user.blackjack_bet = bet
 
-        await state.set_state(BlackjackState.blackjack_activated)
-        await state.set_data({"blackjack": blackjack})
-
-        return await message.reply_photo(
+        game_message = await message.reply_photo(
             image,
-            caption=f"Blackjack game session started with bet {bet}! Good luck...",
-            reply_markup=get_blackjack_keyboard(user.username)
+            caption=f"Blackjack, bet: <b>{bet}</b>.",
+            reply_markup=get_blackjack_keyboard(user.username),
+            parse_mode="HTML"
         )
+
+        await state.set_state(BlackjackState.blackjack_activated)
+        return await state.set_data({"blackjack": blackjack, "game_message": game_message})
 
     @router.message(Command("balance"))
     async def balance_cmd(message: types.Message, ledger: Ledger):

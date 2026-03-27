@@ -54,7 +54,8 @@ def create_router():
         return await callback.message.edit_media(media)
 
     @router.message(F.text.startswith("/"))
-    async def command_cmd(message: types.Message):
-        return await message.answer("You're playing blackjack right now!")
+    async def command_cmd(message: types.Message, state: FSMContext):
+        game_message: types.Message = (await state.get_data()).get("game_message")
+        return await game_message.reply("You're playing blackjack right now!")
 
     return router

@@ -1,7 +1,7 @@
 import asyncio
 import numpy as np
 from aiogram import types
-from aiogram.types import FSInputFile
+from aiogram.types import FSInputFile, InputMediaPhoto, InputMediaAnimation
 from lib.ledger import Ledger
 from lib import database
 from lib.models import GainType, StatsType
@@ -135,7 +135,7 @@ class Gambler:
         if bet_per_ball < 100:
             return await message.reply("Bet per ball should be >= 100!")
 
-        wait_msg = await message.reply(f"Waiting for simulation results /galton {bet} {balls}")
+        galton_msg = await message.reply(f"Waiting for simulation results /galton {bet} {balls}")
 
         user.galton_bet = bet
         user.galton_balls = balls
@@ -147,9 +147,9 @@ class Gambler:
         background_path = database.get_galton_background_path(user.username)
         multiplier, filename, duration = await run_in_thread(physics_simulation.run, balls, background_path)
 
-        await wait_msg.delete()
         animation = FSInputFile(filename, filename=str(filename))
-        galton_msg = await message.reply_animation(animation)
+        media = InputMediaAnimation(media=animation, caption=None)
+        await galton_msg.edit_media(media)
         await asyncio.sleep(duration + 2)
 
         user.galton_running_count -= 1
@@ -158,7 +158,9 @@ class Gambler:
         if gain:
             self.ledger.record_gain(user.username, gain, f"Galton gain X{multiplier}")
 
-        return await galton_msg.reply(f"Multiplier X{multiplier}! {self.get_balance_str(user.username)}")
+        return await galton_msg.edit_caption(
+            caption=f"Multiplier <b>X{multiplier}</b>! {self.get_balance_str(user.username)}", parse_mode="HTML"
+        )
 
     async def daily_prize(self, message: types.Message):
         username = message.from_user.username

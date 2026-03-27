@@ -81,14 +81,11 @@ def calculate_score(hand: list[str]) -> int:
         val = min(10, int(card[1:]))
         if val == 1:
             ace_count += 1
-        else:
-            score += val
+        score += val
 
     for i in range(ace_count):
-        if score + 11 <= 21:
-            score += 11
-        else:
-            score += 1
+        if score + 10 <= 21:
+            score += 10
 
     return score
 
