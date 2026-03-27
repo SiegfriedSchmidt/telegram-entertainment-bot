@@ -20,6 +20,7 @@ from lib.middlewares.access_middleware import AccessMiddleware
 from lib.middlewares.logger_middleware import LoggerMiddleware
 from lib.ssh_manager import ssh_manager
 from lib.storage import storage
+from lib.utils.message_factories import get_leaderboard
 from lib.utils.utils import clear_dir_contents
 
 nest_asyncio.apply()
@@ -31,7 +32,7 @@ async def notification(message: str, bot: Bot):
         await bot.send_message(config.main_group_id, message, parse_mode=None)
 
 
-async def on_day_start(bot: Bot):
+async def on_day_start(bot: Bot, ledger: Ledger) -> None:
     clear_dir_contents(galton_videos_folder_path)
     clear_dir_contents(blackjack_videos_folder_path)
 
@@ -39,7 +40,10 @@ async def on_day_start(bot: Bot):
     message = f'Daily joke:\n\n{joke}'
 
     for group_id in config.group_ids:
-        await bot.send_message(group_id, "<b>Daily Prize Updated!</b>. Do /daily_prize to open!", parse_mode="html")
+        leaderboard = '\n'.join(get_leaderboard(ledger))
+        await bot.send_message(
+            group_id, f"<b>Daily Prize Updated!</b>. Do /daily_prize to open!\n{leaderboard}", parse_mode="html"
+        )
         await asyncio.sleep(5)
         await bot.send_message(group_id, message, parse_mode=None)
 
@@ -82,7 +86,7 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger) -> N
 
     # scheduler
     hour, minute = map(int, config.day_start_time.split(":"))
-    scheduler.add_job(on_day_start, CronTrigger(hour=hour, minute=minute), args=(bot,))
+    scheduler.add_job(on_day_start, CronTrigger(hour=hour, minute=minute), args=(bot, ledger))
     scheduler.add_job(ledger.mine_block, IntervalTrigger(seconds=storage.mine_block_interval_seconds))
     scheduler.start()
 

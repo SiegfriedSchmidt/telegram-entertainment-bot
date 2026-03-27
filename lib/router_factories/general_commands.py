@@ -1,6 +1,5 @@
 import asyncio
 import random
-from itertools import chain
 from pathlib import Path
 from aiogram import Router, types
 from aiogram.exceptions import TelegramBadRequest
@@ -26,6 +25,7 @@ from lib.states.blackjack_state import BlackjackState
 from lib.states.confirmation_state import ConfirmationState
 from lib.storage import storage
 from lib.temporal_storage import User
+from lib.utils.message_factories import get_leaderboard
 from lib.utils.utils import get_args, large_respond, is_bot_admin, get_username_with_reply, from_iso
 
 
@@ -219,12 +219,7 @@ def create_router():
     async def leaderboard_cmd(message: types.Message, command: CommandObject, ledger: Ledger):
         args = get_args(command, 0, 1)
         is_all = len(args) == 1 and args[0] == "all"
-        balances = ledger.get_all_balances() if is_all else ledger.get_all_balances()[1:]
-
-        lines = chain(
-            (f"<b>Leaderboard:</b>",),
-            (f'{idx if is_all else idx + 1}. {username}: {amount}' for idx, (username, amount) in enumerate(balances))
-        )
+        lines = get_leaderboard(ledger, is_all)
         return await large_respond(message, lines, parse_mode='html')
 
     @router.message(Command("export_transactions"))
