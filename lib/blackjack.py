@@ -6,6 +6,7 @@ from lib.init import blackjack_assets_folder_path, blackjack_videos_folder_path
 from lib.ledger import Ledger
 from lib.models import BlackjackResultType, StatsType
 from lib import database
+from lib.utils.cv2_utils import cv2_paste_with_alpha
 
 table = cv2.imread(blackjack_assets_folder_path / "background.png", cv2.IMREAD_UNCHANGED)
 
@@ -22,21 +23,6 @@ for suit in ["C", "D", "H", "S"]:
 card_back = cv2.imread(blackjack_assets_folder_path / "cards/1.png", cv2.IMREAD_UNCHANGED)
 card_back = cv2.resize(card_back, (card_back.shape[1] * 3, card_back.shape[0] * 3))
 card_size = card_back.shape[1], card_back.shape[0]
-
-
-def cv2_paste_with_alpha(background, foreground, pos):
-    x, y = pos
-    fg_h, fg_w = foreground.shape[:2]
-    roi = background[y:y + fg_h, x:x + fg_w]
-
-    if foreground.shape[2] == 4:
-        alpha = foreground[:, :, 3] / 255.0
-        for c in range(3):
-            roi[:, :, c] = (1 - alpha) * roi[:, :, c] + alpha * foreground[:, :, c]
-    else:
-        roi[:] = foreground
-
-    background[y:y + fg_h, x:x + fg_w] = roi
 
 
 def draw_card(frame: np.ndarray, target_pos: tuple[int, int], card: str | None = None, progress: float = 1.0):
@@ -120,7 +106,7 @@ class Blackjack:
     def _get_caption_and_multiplier(result: BlackjackResultType) -> tuple[str, float]:
         match result:
             case BlackjackResultType.win:
-                return "You won", 1.75
+                return "You won", 2
             case BlackjackResultType.draw:
                 return "It's a draw", 1
             case BlackjackResultType.surrender:

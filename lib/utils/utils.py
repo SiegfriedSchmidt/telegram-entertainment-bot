@@ -75,11 +75,15 @@ async def is_bot_admin(message: types.Message) -> bool:
         return False
 
 
+def clean_username(username: str) -> str:
+    return username.replace("@", "").strip()
+
+
 async def get_username_with_reply(message: types.Message, arg: str | None = None) -> str:
     if message.reply_to_message:
         username = message.reply_to_message.from_user.username
     elif arg is not None:
-        username = arg
+        username = clean_username(arg)
     else:
         username = message.from_user.username
 

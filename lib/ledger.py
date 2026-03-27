@@ -10,6 +10,7 @@ from typing import BinaryIO
 from lib import database
 from lib.database import db, User, Transaction, Block
 from lib.logger import ledger_logger
+from lib.utils.utils import clean_username
 
 GENESIS_BLOCK_REWARD = Decimal(1e9)
 EMPTY_HASH = "0" * 64
@@ -305,8 +306,8 @@ class Ledger:
 
     def record_transaction(self, from_username: str | None, to_username: str, amount: Decimal | str | float,
                            description: str = None, timestamp: str = None) -> Transaction:
-        from_username = from_username.replace("@", "").strip() if from_username is not None else None
-        to_username = to_username.replace("@", "").strip() if to_username is not None else None
+        from_username = clean_username(from_username) if from_username is not None else None
+        to_username = clean_username(to_username) if to_username is not None else None
         tx = self.__create_transaction(from_username, to_username, amount, description, timestamp)
         self.__record_transaction(tx)
         return tx

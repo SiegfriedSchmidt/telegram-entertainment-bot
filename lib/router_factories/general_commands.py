@@ -26,7 +26,7 @@ from lib.states.confirmation_state import ConfirmationState
 from lib.storage import storage
 from lib.temporal_storage import User
 from lib.utils.message_factories import get_leaderboard
-from lib.utils.utils import get_args, large_respond, is_bot_admin, get_username_with_reply, from_iso
+from lib.utils.utils import get_args, large_respond, is_bot_admin, get_username_with_reply, from_iso, clean_username
 
 
 def create_router():
@@ -242,7 +242,7 @@ def create_router():
     async def user_blocks_cmd(message: types.Message, command: CommandObject):
         args = get_args(command, 0, 3)
         if len(args) >= 1 and not args[0].isdigit():
-            username = args[0]
+            username = clean_username(args[0])
             args.pop(0)
         else:
             username = await get_username_with_reply(message)

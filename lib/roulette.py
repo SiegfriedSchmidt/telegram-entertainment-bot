@@ -1,0 +1,3 @@
+class Roulette:
+    def __init__(self):
+        ...
