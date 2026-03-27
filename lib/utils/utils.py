@@ -6,7 +6,9 @@ from io import BytesIO
 from pathlib import Path
 from typing import List, Iterable, Tuple, Protocol, Union, runtime_checkable
 from aiogram import types
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import CommandObject
+from aiogram.types import ChatMemberAdministrator, ChatMemberOwner
 
 
 def get_file_from_str(string: str, filename: str) -> BytesIO:
@@ -55,6 +57,18 @@ def get_args(command: CommandObject, min_args=-1, max_args=-1) -> List[str]:
         raise RuntimeError(f"Too many arguments {args_count} > {max_args}.")
 
     return args
+
+
+async def is_bot_admin(message: types.Message) -> bool:
+    try:
+        bot = message.bot
+        member = await bot.get_chat_member(message.chat.id, bot.id)
+        if isinstance(member, (ChatMemberAdministrator, ChatMemberOwner)):
+            return True
+
+        return False
+    except TelegramAPIError:
+        return False
 
 
 def used_today(last_used: datetime, day_start_time: str) -> bool:
