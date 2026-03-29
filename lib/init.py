@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-bot_version = '0.3.0v beta'
+bot_version = '0.3.2v beta'
 
 secret_folder_path = Path(os.environ.get("SECRET_FOLDER_PATH", "./.secret"))
 data_folder_path = Path(os.environ.get("DATA_FOLDER_PATH", "./data"))
@@ -18,6 +18,9 @@ for _ in range(2):
     if not os.path.exists(migrations_folder_path):
         migrations_folder_path = '../' / migrations_folder_path
 
+fonts_folder_path = assets_folder_path / "fonts"
+blackjack_assets_folder_path = assets_folder_path / "blackjack"
+
 keys_folder_path = secret_folder_path / ".ssh_keys"
 settings_file_path = secret_folder_path / "settings.json"
 
@@ -27,14 +30,8 @@ database_file_path = data_folder_path / "database.sqlite"
 videos_folder_path = data_folder_path / "videos"
 videos_folder_path.mkdir(exist_ok=True)
 
-galton_videos_folder_path = data_folder_path / "galton_videos"
-galton_videos_folder_path.mkdir(exist_ok=True)
-
 galton_backgrounds_folder_path = data_folder_path / "galton_backgrounds"
 galton_backgrounds_folder_path.mkdir(exist_ok=True)
 
-blackjack_videos_folder_path = data_folder_path / "blackjack"
-blackjack_videos_folder_path.mkdir(exist_ok=True)
-
-fonts_folder_path = assets_folder_path / "fonts"
-blackjack_assets_folder_path = assets_folder_path / "blackjack"
+tmp_folder_path = data_folder_path / "tmp"
+tmp_folder_path.mkdir(exist_ok=True)

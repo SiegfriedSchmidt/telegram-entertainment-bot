@@ -12,7 +12,7 @@ from lib.api.joke_api import get_joke
 from lib.bot_commands import set_bot_commands
 from lib.config_reader import config
 from lib.gambler import Gambler
-from lib.init import galton_videos_folder_path, bot_version, blackjack_videos_folder_path
+from lib.init import tmp_folder_path, bot_version
 from lib.ledger import Ledger, LedgerError
 from lib.routers import public_commands, errors, group_admin, group_general, private_admin
 from lib.logger import main_logger
@@ -33,8 +33,7 @@ async def notification(message: str, bot: Bot):
 
 
 async def on_day_start(bot: Bot, ledger: Ledger) -> None:
-    clear_dir_contents(galton_videos_folder_path)
-    clear_dir_contents(blackjack_videos_folder_path)
+    clear_dir_contents(tmp_folder_path)
 
     joke = await get_joke()
     message = f'Daily joke:\n\n{joke}'

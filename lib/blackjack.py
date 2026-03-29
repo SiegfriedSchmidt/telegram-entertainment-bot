@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import math
 import random
-from lib.init import blackjack_assets_folder_path, blackjack_videos_folder_path
+from lib.init import blackjack_assets_folder_path, tmp_folder_path
 from lib.ledger import Ledger
 from lib.models import BlackjackResultType, StatsType
 from lib import database
@@ -98,7 +98,7 @@ class Blackjack:
 
     @staticmethod
     def write_image(image: np.ndarray) -> str:
-        filename = blackjack_videos_folder_path / f"{random.randint(0, 1 << 31)}.png"
+        filename = tmp_folder_path / f"blackjack_{random.randint(0, 1 << 31)}.png"
         cv2.imwrite(filename, image)
         return filename
 

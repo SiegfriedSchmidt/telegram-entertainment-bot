@@ -1,4 +1,4 @@
-from lib.init import galton_videos_folder_path, galton_backgrounds_folder_path
+from lib.init import tmp_folder_path, galton_backgrounds_folder_path
 from lib.logger import main_logger
 from lib.opencv_custom_writer import OpencvCustomWriter
 from lib.storage import storage
@@ -362,7 +362,7 @@ class PhysicsSimulation:
         assert len(categories_count) == self.manual_coefficients.size, "Inconsistent number of categories"
         # self.compute_probabilities(categories_count)
 
-        filename = galton_videos_folder_path / f"{self.seed}.mp4"
+        filename = tmp_folder_path / f"galton_{self.seed}.mp4"
         multiplier = np.round(np.sum(np.array(categories_count) * self.manual_coefficients), 1)
         frames = positions[::self.subsampling]
         ball_colors = self.prepare_ball_colors(ball_category, len(categories_count))
@@ -382,7 +382,7 @@ class PhysicsSimulation:
         positions, ball_category, categories_count = self.simulate(space, balls)
 
         collision_data = ball_collisions_list[0]
-        filename = galton_videos_folder_path / f"{collision_data.get_path()}.mp4"
+        filename = tmp_folder_path / f"galton_{collision_data.get_path()}.mp4"
         frames = positions[::self.subsampling]
         ball_colors = self.prepare_ball_colors(ball_category, len(categories_count))
 

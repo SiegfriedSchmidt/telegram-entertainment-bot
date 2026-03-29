@@ -5,7 +5,7 @@ from aiogram import Router, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
-from aiogram.types import BufferedInputFile, FSInputFile
+from aiogram.types import BufferedInputFile, FSInputFile, InputMediaAnimation
 from aiogram.utils.chat_action import ChatActionMiddleware
 from lib import database
 from lib.blackjack import Blackjack
@@ -21,6 +21,7 @@ from lib.api.geoip_api import geoip
 from lib.gambler import Gambler
 from lib.middlewares.user_middleware import UserMiddleware
 from lib.physics_simulation import PhysicsSimulation
+from lib.roulette import render_roulette
 from lib.states.blackjack_state import BlackjackState
 from lib.states.confirmation_state import ConfirmationState
 from lib.storage import storage
@@ -134,6 +135,18 @@ def create_router():
 
         await state.set_state(BlackjackState.blackjack_activated)
         return await state.set_data({"blackjack": blackjack, "game_message": game_message})
+
+    @router.message(Command("roulette"))
+    async def roulette_cmd(message: types.Message, command: CommandObject, user: User):
+        roulette_msg = await message.reply("Start roulette...")
+        filename, duration, win_number = render_roulette()
+
+        animation = FSInputFile(filename, filename=str(filename))
+        media = InputMediaAnimation(media=animation, caption=None)
+        await roulette_msg.edit_media(media)
+
+        await asyncio.sleep(duration)
+        await roulette_msg.edit_caption(caption=f"Win number: {win_number}!")
 
     @router.message(Command("balance"))
     async def balance_cmd(message: types.Message, ledger: Ledger):
