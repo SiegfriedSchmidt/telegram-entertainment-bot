@@ -23,7 +23,7 @@ from lib.states.confirmation_state import ConfirmationState
 from lib.states.ssh_session_state import SSHSessionState
 from lib.states.switch_state import SwitchState
 from lib.utils.utils import get_args, large_respond, run_in_thread, get_dir_size, clear_dir_contents, remove_file, \
-    is_valid_mac_address
+    is_valid_mac_address, save_document
 
 
 def create_router():
@@ -118,19 +118,30 @@ def create_router():
 
     @router.message(Command("upload_faq"))
     async def upload_faq_cmd(message: types.Message):
-        if not message.reply_to_message:
-            return await message.answer("You should reply to a message with document.")
-        if not message.reply_to_message.document:
-            return await message.answer("You should reply to a message containing document.")
+        if not message.reply_to_message or not message.reply_to_message.document:
+            return await message.answer("reply to a message with faq.md!")
 
-        doc = message.reply_to_message.document
-        file = await message.bot.get_file(doc.file_id)
-        downloaded_file = await message.bot.download_file(file.file_path)
+        await save_document(message, data_folder_path / "faq.md")
+        return await message.answer('Saved faq.md')
 
-        with open(f"{data_folder_path}/faq.md", "wb") as f:
-            f.write(downloaded_file.read())
+    @router.message(Command('cookies'))
+    async def cookies_cmd(message: types.Message, command: CommandObject):
+        args = get_args(command, 0, 1)
+        cookies_path = data_folder_path / "cookies.txt"
+        if len(args) == 1 and args[0] == 'reset':
+            downloader.cookies = None
+            try:
+                remove_file(cookies_path)
+            except FileNotFoundError:
+                return await message.answer("Cookies.txt not exists!")
+            return await message.answer('Cookies reset!')
 
-        return await message.answer('Saved faq.')
+        if not message.reply_to_message or not message.reply_to_message.document:
+            return await message.answer('reply to a message with cookies.txt!')
+
+        await save_document(message, cookies_path)
+        downloader.cookies = cookies_path
+        return await message.answer('Saved cookies.txt')
 
     @router.message(Command("faq"))
     async def faq_cmd(message: types.Message):

@@ -61,6 +61,7 @@ bot_admin_commands = [
     BotCommand(command='unfollow_file', description='stop following current file'),
     BotCommand(command='rcon_follow', description='follow rcon logs file'),
     BotCommand(command='rcon', description='execute rcon command'),
+    BotCommand(command='cookies', description='{reset: optional} add cookies.txt for yt-dlp'),
 ]
 
 bot_admin_commands += bot_general_commands

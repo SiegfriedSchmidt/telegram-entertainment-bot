@@ -1,7 +1,6 @@
 import yt_dlp
 from pathlib import Path
 from typing import Optional, Union, List, Tuple
-
 from lib.config_reader import config
 from lib.init import videos_folder_path
 from lib.logger import main_logger
@@ -53,6 +52,14 @@ class Downloader:
         if not logger:
             # Suppress verbose yt-dlp output
             self.ydl_opts.update({"quiet": True, "no_warnings": True})
+
+    @property
+    def cookies(self) -> str:
+        return self.ydl_opts["cookies"]
+
+    @cookies.setter
+    def cookies(self, path: str | Path | None) -> None:
+        self.ydl_opts["cookies"] = path
 
     def download(self, url: str) -> Tuple[Optional[Tuple[str, dict]], str]:
         """

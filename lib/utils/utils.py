@@ -75,6 +75,15 @@ async def is_bot_admin(message: types.Message) -> bool:
         return False
 
 
+async def save_document(message: types.Message, path: str | Path) -> None:
+    doc = message.reply_to_message.document
+    file = await message.bot.get_file(doc.file_id)
+    downloaded_file = await message.bot.download_file(file.file_path)
+
+    with open(path, "wb") as f:
+        f.write(downloaded_file.read())
+
+
 def clean_username(username: str) -> str:
     return username.replace("@", "").strip()
 
