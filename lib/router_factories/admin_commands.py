@@ -11,7 +11,7 @@ from aiogram.utils.chat_action import ChatActionMiddleware
 from rcon.source import rcon
 from lib.api.geoip_api import geoip
 from lib.downloader import downloader
-from lib.init import data_folder_path, videos_folder_path
+from lib.init import data_folder_path, videos_folder_path, cookies_file_path
 from lib.keyboards.switch_host_keyboard import get_switch_host_keyboard
 from lib.logger import log_stream
 from lib.matplotlib_tables import create_table_matplotlib
@@ -130,11 +130,10 @@ def create_router():
     @router.message(Command('cookies'))
     async def cookies_cmd(message: types.Message, command: CommandObject):
         args = get_args(command, 0, 1)
-        cookies_path = data_folder_path / "cookies.txt"
         if len(args) == 1 and args[0] == 'reset':
             downloader.cookies = None
             try:
-                remove_file(cookies_path)
+                remove_file(cookies_file_path)
             except FileNotFoundError:
                 return await message.answer("Cookies.txt not exists!")
             return await message.answer('Cookies reset!')
@@ -142,8 +141,8 @@ def create_router():
         if not message.reply_to_message or not message.reply_to_message.document:
             return await message.answer('reply to a message with cookies.txt!')
 
-        await save_document(message, cookies_path)
-        downloader.cookies = cookies_path
+        await save_document(message, cookies_file_path)
+        downloader.cookies = cookies_file_path
         return await message.answer('Saved cookies.txt')
 
     @router.message(Command("faq"))

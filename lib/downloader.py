@@ -3,7 +3,7 @@ import yt_dlp
 from pathlib import Path
 from typing import Optional, Union, List, Tuple
 from lib.config_reader import config
-from lib.init import videos_folder_path
+from lib.init import videos_folder_path, cookies_file_path
 from lib.logger import main_logger
 
 
@@ -35,20 +35,24 @@ class Downloader:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         format_selector = (
-            # 1) Separate H.264 video + AAC audio
+            # 1) BEST: Separate H.264 video + AAC audio
             f"bestvideo[vcodec^=avc][height<={max_height}]+bestaudio[acodec^=mp4a]/"
-            # 2) Combined H.264/AAC format up to max_height
+            # 2) BEST: Combined H.264/AAC file
             f"best[vcodec^=avc][acodec^=mp4a][height<={max_height}]/"
-            # 3) Best combined up to max_height (ignoring codec if necessary)
-            f"best[height<={max_height}]/"
-            # 4) Just best video and audio without height restriction as last resort
-            "bestvideo+bestaudio/best"
+            # 3) FALLBACK: Best H.264 video (any container/audio), merged with best audio
+            f"bestvideo[vcodec^=avc][height<={max_height}]+bestaudio/"
+            # 4) LAST RESORT: Any format that can be remuxed to MP4
+            f"best[height<={max_height}]/best"
         )
 
         # Default options for yt-dlp
         self.ydl_opts = {
             "format": format_selector,
-            "merge_output_format": "mp4",  # Force MP4 container
+            "merge_output_format": "mp4",  # Force final container to MP4
+            "postprocessors": [{  # Add a postprocessor to remux to MP4
+                "key": "FFmpegVideoConvertor",
+                "preferedformat": "mp4",
+            }],
             "outtmpl": str(self.output_dir / "%(title)s.%(ext)s"),
             "restrictfilenames": True,
             "windowsfilenames": True,
@@ -64,6 +68,9 @@ class Downloader:
             # Suppress verbose yt-dlp output
             self.ydl_opts.update({"quiet": True, "no_warnings": True})
 
+        if os.path.exists(cookies_file_path) and os.path.isfile(cookies_file_path):
+            self.cookies = cookies_file_path
+
     @property
     def cookies(self) -> str:
         return self.ydl_opts["cookiefile"]
@@ -72,7 +79,7 @@ class Downloader:
     def cookies(self, path: str | Path | None) -> None:
         if path is None:
             self.ydl_opts.pop("cookiefile", "")
-        self.ydl_opts["cookiefile"] = path
+        self.ydl_opts["cookiefile"] = str(path)
 
     def download(self, url: str) -> Tuple[Optional[Tuple[str, str, str, dict]], str]:
         """
