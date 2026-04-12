@@ -1,6 +1,5 @@
 from lib.config_reader import config
-from lib.routers import messages
-from lib.router_factories import general_commands, blackjack_session
+from lib.router_factories import general_commands, blackjack_session, messages
 from aiogram import F, Router
 
 router = Router()
@@ -12,5 +11,5 @@ router.message.filter(
 router.include_routers(
     blackjack_session.create_router(),
     general_commands.create_router(),
-    messages.router
+    messages.create_router()
 )

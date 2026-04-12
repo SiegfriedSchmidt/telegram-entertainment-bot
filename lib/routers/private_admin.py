@@ -6,7 +6,7 @@ from typing import get_type_hints
 from lib import database
 from lib.config_reader import config
 from lib.ledger import Ledger
-from lib.router_factories import admin_commands, ssh_session, general_commands
+from lib.router_factories import admin_commands, ssh_session, general_commands, messages
 from lib.states.confirmation_state import ConfirmationState
 from lib.storage import storage, PersistentData
 from lib.utils.message_utils import get_args
@@ -21,7 +21,8 @@ router.message.filter(
 router.include_routers(
     admin_commands.create_router(),
     general_commands.create_router(),
-    ssh_session.create_router()
+    ssh_session.create_router(),
+    messages.create_router()
 )
 
 
