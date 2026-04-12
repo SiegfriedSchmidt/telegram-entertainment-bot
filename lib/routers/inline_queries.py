@@ -1,5 +1,4 @@
 from lib.downloader import downloader
-from lib.utils.general_utils import run_in_thread
 from lib.config_reader import config
 from aiogram import Router, F
 from aiogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessageContent, LinkPreviewOptions
@@ -27,11 +26,11 @@ async def inline_handler(inline_query: InlineQuery):
         return await show_text(inline_query, "Invalid", "No query provided")
 
     url = query.split()[0]
-    result, error = await run_in_thread(downloader.download, url)
+    result, error = await downloader.download(url)
     if error:
         return await show_text(inline_query, "Error", "Error occurred while downloading")
 
-    filepath, filename, server_url, info = result
+    filepath, filename, server_url, optimized = result
     if not server_url:
         return await show_text(inline_query, "Error", "Error occurred while downloading")
 

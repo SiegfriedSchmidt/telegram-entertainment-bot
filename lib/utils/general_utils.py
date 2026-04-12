@@ -23,6 +23,10 @@ def get_dir_size(path: Path | str):
     return total
 
 
+def get_size_str(size: int) -> str:
+    return f'{round(size / 1024 / 1024, 1)} MB'
+
+
 def clear_dir_contents(path: Path | str) -> List[Tuple[str, int]]:
     files: List[Tuple[str, int]] = []
     with os.scandir(path) as it:

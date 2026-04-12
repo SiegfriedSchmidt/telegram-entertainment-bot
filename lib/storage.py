@@ -25,6 +25,8 @@ class PersistentData:
     ffmpeg_crf: FFMPEG_CRF = 23
     ffmpeg_preset: FFMPEG_PRESET = 'veryfast'
     latest_github_commit_sha: str = ''
+    optimize: bool = True
+    video_max_size: int = 40 * 2 ** 20
     # admin_ids: List[int] = field(default_factory=list)
 
 

@@ -25,7 +25,7 @@ from lib.states.ssh_session_state import SSHSessionState
 from lib.states.switch_state import SwitchState
 from lib.utils.command_utils import download_video
 from lib.utils.general_utils import run_in_thread, get_dir_size, clear_dir_contents, \
-    remove_file
+    remove_file, get_size_str
 from lib.utils.regex_utils import is_valid_mac_address
 from lib.utils.message_utils import get_args, save_document, large_respond
 
@@ -253,26 +253,28 @@ def create_router():
         args = get_args(command, 0, 1)
         if message.reply_to_message:
             url = message.reply_to_message.text
+            await download_video(message.reply_to_message, url)
         elif len(args) == 1:
             url = args[0]
+            await download_video(message, url)
         else:
-            return await message.answer('There is no url to download!')
-
-        return await download_video(message, url)
+            await message.answer('There is no url to download!')
 
     @router.message(Command("clear_videos"))
     async def clear_videos_cmd(message: types.Message, state: FSMContext):
-        space = round(get_dir_size(videos_folder_path) / 1024 / 1024, 1)
-        if space < 1:
+        dir_size = get_dir_size(videos_folder_path)
+        if dir_size < 1:
             return await message.answer("Directory is empty.")
         await state.set_state(ConfirmationState.clear_videos_confirmation)
-        return await message.answer(f'Do you want to delete all videos (y/n)? Space will be freed: {space} MB.')
+        return await message.answer(
+            f'Do you want to delete all videos (y/n)? Space will be freed: {get_size_str(dir_size)}.'
+        )
 
     @router.message(ConfirmationState.clear_videos_confirmation)
     async def clear_videos(message: types.Message, state: FSMContext):
         if message.text.lower() == "y":
             files = clear_dir_contents(videos_folder_path)
-            text = map(lambda t: f"{t[0]}: {round(t[1] / 1024 / 1024, 1)} MB", files)
+            text = map(lambda t: f"{t[0]}: {get_size_str(t[1])}", files)
             await large_respond(message, chain(("Files deleted:",), text))
         else:
             await message.answer('abort')
@@ -290,6 +292,7 @@ def create_router():
         else:
             return await message.answer('There is no video to delete!')
 
+        filename = filename.split()[0]
         try:
             filesize = remove_file(videos_folder_path / filename)
             await message.answer(f'Video {filename} - {round(filesize / 1024 / 1024, 1)} MB deleted.')
