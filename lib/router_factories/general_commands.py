@@ -120,6 +120,28 @@ def create_router():
             await message.answer('abort')
         return await state.clear()
 
+    @router.message(Command("change_llm_key"))
+    async def change_llm_key_cmd(message: types.Message, command: CommandObject, state: FSMContext,
+                                 openrouter_llm: OpenrouterLLM):
+        args = get_args(command, 1, 1)
+        api_key = args[0]
+        await state.set_state(ConfirmationState.change_llm_key_confirmation)
+        await state.set_data({"api_key": api_key})
+        await message.answer(
+            f'Do you want to change llm api key: "{openrouter_llm.api_key[:16]}" -> "{api_key[:16]}"? (y/n)'
+        )
+
+    @router.message(ConfirmationState.change_llm_key_confirmation)
+    async def change_llm_key(message: types.Message, state: FSMContext, openrouter_llm: OpenrouterLLM):
+        if message.text.lower() == "y":
+            state_data = await state.get_data()
+            api_key = state_data["api_key"]
+            openrouter_llm.api_key = api_key
+            await message.answer(f"Changed llm api key to {api_key[:16]}!")
+        else:
+            await message.answer('abort')
+        return await state.clear()
+
     @router.message(Command("geoip"))
     async def geoip_cmd(message: types.Message, command: CommandObject):
         args = get_args(command, 1, 1)
