@@ -1,13 +1,13 @@
 import asyncio
 import numpy as np
 from aiogram import types
-from aiogram.types import FSInputFile, InputMediaPhoto, InputMediaAnimation
+from aiogram.types import FSInputFile, InputMediaAnimation
 from lib.ledger import Ledger
 from lib import database
 from lib.models import GainType, StatsType
 from lib.physics_simulation import PhysicsSimulation
 from lib.storage import storage
-from lib.temporal_storage import User
+from lib.models import UserModel
 from lib.utils.general_utils import run_in_thread
 
 gamble_multipliers = {
@@ -99,7 +99,7 @@ class Gambler:
     def get_balance_str(self, username: str) -> str:
         return f'{username}: {self.ledger.get_user_balance(username)} coins.'
 
-    async def gamble(self, message: types.Message, user: User, user_bet: str = None):
+    async def gamble(self, message: types.Message, user: UserModel, user_bet: str = None):
         bet = await self.validate_bet(user.username, user.gamble_bet if user_bet is None else user_bet)
 
         if bet < 20:
@@ -119,7 +119,7 @@ class Gambler:
         await asyncio.sleep(1.5)
         return await self.show_win_message(dice_msg, gain_type, self.get_balance_str(user.username))
 
-    async def galton(self, message: types.Message, user: User, user_bet: str = None, user_balls: str = None):
+    async def galton(self, message: types.Message, user: UserModel, user_bet: str = None, user_balls: str = None):
         bet = await self.validate_bet(user.username, user.galton_bet if user_bet is None else user_bet)
         balls = user.galton_balls if user_balls is None else int(user_balls)
 

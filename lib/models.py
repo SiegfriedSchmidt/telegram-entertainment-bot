@@ -1,4 +1,4 @@
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel
 from enum import Enum, EnumMeta
 
 
@@ -15,37 +15,14 @@ class BaseEnum(Enum, metaclass=MetaEnum):
     pass
 
 
-class RconModel(BaseModel):
-    address: str
-    port: str
-    password: str
-    rcon_logs_path: str
-
-
-class HostModel(BaseModel):
-    name: SecretStr
-    hostname: SecretStr
-    port: SecretStr
-    username: SecretStr
-    key_name: SecretStr
-    docker_projects_path: str
-    rcon: RconModel | None = None
-
-
 class UserModel(BaseModel):
     username: str
-    host: str
     nonce: int
     gamble_bet: int
     galton_bet: int
     blackjack_bet: int
     galton_balls: int
     galton_running_count: int
-
-
-class TerminalType(str, BaseEnum):
-    text = 'text'
-    image = 'image'
 
 
 class BlackjackResultType(str, BaseEnum):

@@ -31,23 +31,11 @@ bot_general_commands = [
 ]
 
 bot_admin_commands = [
-    BotCommand(command='projects', description='show all docker projects'),
-    BotCommand(command='up', description='{project_name:required} - start docker project'),
-    BotCommand(command='down', description='{project_name:required} - stop docker project'),
-    BotCommand(command='update', description='update bot image'),
-    BotCommand(command='reboot', description='reboot machine'),
-    BotCommand(command='prune', description='remove unused docker containers'),
-    BotCommand(command='stats', description='host statistics'),
     BotCommand(command='upload_faq', description='upload faq file'),
     BotCommand(command='faq', description='get faq file'),
     BotCommand(command='logs', description='get logs'),
-    BotCommand(command='curl', description='curl command'),
-    BotCommand(command='torip', description='get tor geoip'),
-    BotCommand(command='openconnect', description='{status|restart|stop|start:required} manage openconnect service'),
-    BotCommand(command='del', description='delete replied message'),
+    BotCommand(command='clear_videos', description='clear downloaded videos'),
     BotCommand(command='access', description='{otp_code:required} get privileged access'),
-    BotCommand(command='activate', description='{terminal_type:optional} activate ssh session in text|image terminal'),
-    BotCommand(command='deactivate', description='deactivate ssh session'),
     BotCommand(
         command='download',
         description='{url:optional} - download video, if url not provided, you should reply to message containing url'
@@ -57,12 +45,6 @@ bot_admin_commands = [
         command='delete_video',
         description='{filename:optional} - delete video, if filename not provided, you should reply to message containing filename'
     ),
-    BotCommand(command='switch', description='switch to another ssh host'),
-    BotCommand(command='wol', description='{mac: required} wake on lan'),
-    BotCommand(command='follow_file', description='{location: required} follow file'),
-    BotCommand(command='unfollow_file', description='stop following current file'),
-    BotCommand(command='rcon_follow', description='follow rcon logs file'),
-    BotCommand(command='rcon', description='execute rcon command'),
     BotCommand(command='cookies', description='{reset: optional} add cookies.txt for yt-dlp'),
 ]
 

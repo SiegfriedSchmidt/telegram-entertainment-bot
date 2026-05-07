@@ -1,6 +1,5 @@
 .idea
 .venv
-.secret/.ssh_keys
 venv
 .DS_STORE
 __pycache__

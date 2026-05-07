@@ -1,15 +1,11 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, JsonConfigSettingsSource
 from pydantic import SecretStr
 from typing import Type, Tuple, List
-
 from lib.init import settings_file_path
-from lib.models import HostModel
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(json_file=settings_file_path, json_file_encoding='utf-8', extra='allow')
-    hosts: List[HostModel]
-    main_host: SecretStr
     main_group_id: int
     group_ids: List[int]
     admin_ids: List[int]

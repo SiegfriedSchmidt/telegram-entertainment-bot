@@ -20,7 +20,6 @@ from lib.routers import public_commands, errors, group_admin, group_general, pri
 from lib.logger import main_logger
 from lib.middlewares.access_middleware import AccessMiddleware
 from lib.middlewares.logger_middleware import LoggerMiddleware
-from lib.ssh_manager import ssh_manager
 from lib.storage import storage
 from lib.api.github_api import get_commits_message
 from lib.utils.message_factories import get_leaderboard
@@ -97,15 +96,6 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger, asyn
 
     # start message
     start_message = f"Bot {bot_version} started."
-
-    # startup docker checks
-    if storage.startup_docker_checks:
-        containers_json = ssh_manager[config.main_host.get_secret_value()].get_running_containers()
-        nextcloud_running = False
-        for c in containers_json:
-            if c["Image"] == 'nextcloud':
-                nextcloud_running = True
-        start_message += '' if nextcloud_running else " Nextcloud is NOT running. Launch it via '/up nextcloud'."
 
     # show latest update
     update_lines, latest_sha = await get_commits_message()

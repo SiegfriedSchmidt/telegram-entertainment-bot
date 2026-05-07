@@ -1,1 +1,1 @@
-# Telegram SSH Bot
+# Telegram Entertainment Bot

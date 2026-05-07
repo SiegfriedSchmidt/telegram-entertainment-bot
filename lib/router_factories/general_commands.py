@@ -26,7 +26,7 @@ from lib.roulette import render_roulette
 from lib.states.blackjack_state import BlackjackState
 from lib.states.confirmation_state import ConfirmationState
 from lib.storage import storage
-from lib.temporal_storage import User
+from lib.models import UserModel
 from lib.utils.message_factories import get_leaderboard
 from lib.utils.general_utils import from_iso, run_in_thread, clean_username
 from lib.utils.message_utils import get_args, is_bot_admin, get_username_with_reply, large_respond
@@ -158,20 +158,20 @@ def create_router():
         return await message.answer('https://www.youtube-nocookie.com/embed/8V1eO0Ztuis')
 
     @router.message(Command("gamble"))
-    async def gamble_cmd(message: types.Message, command: CommandObject, gambler: Gambler, user: User):
+    async def gamble_cmd(message: types.Message, command: CommandObject, gambler: Gambler, user: UserModel):
         args = get_args(command, 0, 1)
         bet = args[0] if len(args) == 1 else None
         return await gambler.gamble(message, user, bet)
 
     @router.message(Command("galton"))
-    async def galton_cmd(message: types.Message, command: CommandObject, gambler: Gambler, user: User):
+    async def galton_cmd(message: types.Message, command: CommandObject, gambler: Gambler, user: UserModel):
         args = get_args(command, 0, 2)
         bet = args[0] if len(args) >= 1 else None
         balls = args[1] if len(args) == 2 else ('1' if len(args) == 1 else None)
         return await gambler.galton(message, user, bet, balls)
 
     @router.message(Command("blackjack"))
-    async def blackjack_cmd(message: types.Message, command: CommandObject, state: FSMContext, user: User,
+    async def blackjack_cmd(message: types.Message, command: CommandObject, state: FSMContext, user: UserModel,
                             ledger: Ledger):
         args = get_args(command, 0, 1)
         bet = args[0] if len(args) == 1 else user.blackjack_bet
@@ -192,7 +192,7 @@ def create_router():
         return await state.set_data({"blackjack": blackjack, "game_message": game_message})
 
     @router.message(Command("roulette"))
-    async def roulette_cmd(message: types.Message, command: CommandObject, user: User):
+    async def roulette_cmd(message: types.Message, command: CommandObject, user: UserModel):
         roulette_msg = await message.reply("Start roulette...")
         filename, duration, win_number = await run_in_thread(render_roulette)
 
@@ -333,7 +333,7 @@ def create_router():
         return await message.answer(f"Block {block.height} successfully mined by {block.miner}!")
 
     @router.message(Command("mine"))
-    async def mine(message: types.Message, command: CommandObject, ledger: Ledger, user: User):
+    async def mine(message: types.Message, command: CommandObject, ledger: Ledger, user: UserModel):
         args = get_args(command, 0, 1)
         if len(args) == 1 and args[0].isdigit():
             nonce = int(args[0])

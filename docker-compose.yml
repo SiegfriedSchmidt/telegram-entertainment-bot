@@ -2,8 +2,8 @@ services:
   tg-ssh-bot:
     platform: linux/amd64
     build: .
-    image: siegfriedschmidt/telegram-ssh-bot
-    container_name: telegram-ssh-bot
+    image: siegfriedschmidt/telegram-entertainment-bot
+    container_name: telegram-entertainment-bot
     environment:
       - TZ=Europe/Moscow
     volumes:

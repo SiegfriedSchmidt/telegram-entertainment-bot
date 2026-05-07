@@ -6,7 +6,8 @@ from lib.gambler import Gambler
 from lib.ledger import Ledger
 from lib.middlewares.user_middleware import UserMiddleware
 from lib.states.confirmation_state import ConfirmationState
-from lib.temporal_storage import User, temporal_storage
+from lib.temporal_storage import temporal_storage
+from lib.models import UserModel
 from lib.utils.command_utils import download_video
 from lib.utils.regex_utils import VIDEO_LINK_REGEX, get_video_link_from_text
 
@@ -41,7 +42,7 @@ def create_router():
         await message.react([ReactionTypeEmoji(emoji='🔥')])
 
     @router.message(F.dice.emoji == "🎰")
-    async def dice_message(message: types.Message, gambler: Gambler, user: User):
+    async def dice_message(message: types.Message, gambler: Gambler, user: UserModel):
         await gambler.gamble(message, user)
 
     @router.message(F.text.regexp(VIDEO_LINK_REGEX))

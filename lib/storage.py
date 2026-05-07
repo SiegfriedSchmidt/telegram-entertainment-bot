@@ -15,7 +15,6 @@ FFMPEG_PRESET = Literal['fast', 'veryfast', 'medium', 'slow', 'veryslow']
 @dataclass
 class PersistentData:
     notifications_enabled: bool = True
-    startup_docker_checks: bool = True
     mine_block_interval_seconds: int = 600
     mine_block_reward: int = 2000
     mine_block_user_timeout: int = 300
