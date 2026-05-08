@@ -16,7 +16,7 @@ class Commit:
     message: str
 
 
-async def get_commits() -> Optional[List[Dict[str, Any]]]:
+async def get_commits() -> List[Dict[str, Any]]:
     params = {
         "per_page": 10,
         "page": 1
@@ -30,10 +30,10 @@ async def get_commits() -> Optional[List[Dict[str, Any]]]:
                         return commits
                 else:
                     main_logger.error(f"GitHub API error: {response.status}")
-                return None
+                return []
         except aiohttp.ClientError as e:
             main_logger.error(f"Network error fetching commit: {e}")
-            return None
+            return []
 
 
 def get_commit_obj(commit: dict) -> Commit:

@@ -21,7 +21,7 @@ class OpenrouterLLM(LLM):
 
         return completion.choices[0].message.content
 
-    async def check_limits(self):
+    async def check_limits(self) -> str:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
         }

@@ -77,9 +77,8 @@ async def on_day_start(bot: Bot, ledger: Ledger) -> None:
 async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger, asyncio_workers: AsyncioWorkers) -> None:
     # ledger
     me = await bot.get_me()
-    ledger.genesis_username = me.username
     try:
-        ledger.load_and_verify_chain()
+        ledger.load_and_verify_chain(me.id, me.username)
     except LedgerError as e:
         await notification(str(e), bot)
         await bot.session.close()

@@ -7,7 +7,7 @@ from lib.ledger import Ledger
 from lib.middlewares.user_middleware import UserMiddleware
 from lib.states.confirmation_state import ConfirmationState
 from lib.temporal_storage import temporal_storage
-from lib.models import UserModel
+from lib.temporal_storage import UserProfile
 from lib.utils.command_utils import download_video
 from lib.utils.regex_utils import VIDEO_LINK_REGEX, get_video_link_from_text
 
@@ -22,17 +22,13 @@ def create_router():
         return await message.reply(f"Did someone say admin?! Calling admin will cost 1000$. (y/n)")
 
     @router.message(ConfirmationState.admin_call_confirmation)
-    async def admin_call(message: types.Message, state: FSMContext, ledger: Ledger):
+    async def admin_call(message: types.Message, state: FSMContext, ledger: Ledger, user: UserProfile):
         await state.clear()
         if message.text.lower() == "y":
-            from_username = message.from_user.username
             for chat_id in config.notification_ids:
-                to_username = temporal_storage.get_user(chat_id).username
-                if not to_username:
-                    raise RuntimeError("User not found")
-
-                ledger.record_transaction(from_username, to_username, 1000, "Admin call")
-                await message.bot.send_message(chat_id, f'{from_username} summoning you!')
+                to_user = temporal_storage.get_user(chat_id)
+                ledger.record_transaction(user.id, to_user.id, 1000, "Admin call")
+                await message.bot.send_message(chat_id, f'{user} summoning you!')
             await message.answer('fine')
         else:
             await message.answer('abort')
@@ -42,7 +38,7 @@ def create_router():
         await message.react([ReactionTypeEmoji(emoji='🔥')])
 
     @router.message(F.dice.emoji == "🎰")
-    async def dice_message(message: types.Message, gambler: Gambler, user: UserModel):
+    async def dice_message(message: types.Message, gambler: Gambler, user: UserProfile):
         await gambler.gamble(message, user)
 
     @router.message(F.text.regexp(VIDEO_LINK_REGEX))

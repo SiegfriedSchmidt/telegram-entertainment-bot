@@ -8,6 +8,6 @@ def get_leaderboard(ledger: Ledger, is_all=False):
 
     lines = chain(
         (f"<b>Leaderboard:</b>",),
-        (f'{idx if is_all else idx + 1}. {username}: {amount}' for idx, (username, amount) in enumerate(balances))
+        (f'{idx if is_all else idx + 1}. {user}: {amount}' for idx, (user, amount) in enumerate(balances))
     )
     return lines

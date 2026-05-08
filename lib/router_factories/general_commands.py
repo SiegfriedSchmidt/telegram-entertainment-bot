@@ -26,10 +26,10 @@ from lib.roulette import render_roulette
 from lib.states.blackjack_state import BlackjackState
 from lib.states.confirmation_state import ConfirmationState
 from lib.storage import storage
-from lib.models import UserModel
+from lib.temporal_storage import UserProfile
 from lib.utils.message_factories import get_leaderboard
-from lib.utils.general_utils import from_iso, run_in_thread, clean_username
-from lib.utils.message_utils import get_args, is_bot_admin, get_username_with_reply, large_respond
+from lib.utils.general_utils import from_iso, run_in_thread
+from lib.utils.message_utils import get_args, is_bot_admin, get_name_or_id_with_reply, large_respond
 
 
 def create_router():
@@ -158,25 +158,25 @@ def create_router():
         return await message.answer('https://www.youtube-nocookie.com/embed/8V1eO0Ztuis')
 
     @router.message(Command("gamble"))
-    async def gamble_cmd(message: types.Message, command: CommandObject, gambler: Gambler, user: UserModel):
+    async def gamble_cmd(message: types.Message, command: CommandObject, gambler: Gambler, user: UserProfile):
         args = get_args(command, 0, 1)
         bet = args[0] if len(args) == 1 else None
         return await gambler.gamble(message, user, bet)
 
     @router.message(Command("galton"))
-    async def galton_cmd(message: types.Message, command: CommandObject, gambler: Gambler, user: UserModel):
+    async def galton_cmd(message: types.Message, command: CommandObject, gambler: Gambler, user: UserProfile):
         args = get_args(command, 0, 2)
         bet = args[0] if len(args) >= 1 else None
         balls = args[1] if len(args) == 2 else ('1' if len(args) == 1 else None)
         return await gambler.galton(message, user, bet, balls)
 
     @router.message(Command("blackjack"))
-    async def blackjack_cmd(message: types.Message, command: CommandObject, state: FSMContext, user: UserModel,
+    async def blackjack_cmd(message: types.Message, command: CommandObject, state: FSMContext, user: UserProfile,
                             ledger: Ledger):
         args = get_args(command, 0, 1)
         bet = args[0] if len(args) == 1 else user.blackjack_bet
 
-        blackjack = Blackjack(ledger, user.username, bet)
+        blackjack = Blackjack(ledger, user, bet)
         filename = blackjack.start()
         image = FSInputFile(filename, filename=str(filename))
         user.blackjack_bet = bet
@@ -184,7 +184,7 @@ def create_router():
         game_message = await message.reply_photo(
             image,
             caption=f"Blackjack, bet: <b>{bet}</b>.",
-            reply_markup=get_blackjack_keyboard(user.username),
+            reply_markup=get_blackjack_keyboard(user.id),
             parse_mode="HTML"
         )
 
@@ -192,7 +192,7 @@ def create_router():
         return await state.set_data({"blackjack": blackjack, "game_message": game_message})
 
     @router.message(Command("roulette"))
-    async def roulette_cmd(message: types.Message, command: CommandObject, user: UserModel):
+    async def roulette_cmd(message: types.Message, command: CommandObject, user: UserProfile):
         roulette_msg = await message.reply("Start roulette...")
         filename, duration, win_number = await run_in_thread(render_roulette)
 
@@ -204,60 +204,62 @@ def create_router():
         await roulette_msg.edit_caption(caption=f"Win number: {win_number}!")
 
     @router.message(Command("balance"))
-    async def balance_cmd(message: types.Message, ledger: Ledger):
-        return await message.answer(f"Your balance is {ledger.get_user_balance(message.from_user.username)}.")
+    async def balance_cmd(message: types.Message, ledger: Ledger, user: UserProfile):
+        return await message.answer(f"Your balance is {ledger.get_user_balance(user.id)}.")
 
     @router.message(Command("transfer"))
-    async def transfer_cmd(message: types.Message, command: CommandObject, state: FSMContext, ledger: Ledger):
+    async def transfer_cmd(message: types.Message, command: CommandObject, state: FSMContext, ledger: Ledger,
+                           user: UserProfile):
         args = get_args(command, 0, 2)
         if message.reply_to_message:
-            to_user = message.reply_to_message.from_user.username
+            to_user_raw = message.reply_to_message.from_user.id
             if len(args) == 1 and args[0].isdecimal():
                 amount = args[0]
             else:
                 return await message.answer('Correct amount is required!')
         elif len(args) == 2 and args[0].isdecimal():
             amount = args[0]
-            to_user = args[1]
+            to_user_raw = args[1]
         elif len(args) == 2 and args[1].isdecimal():
             amount = args[1]
-            to_user = args[0]
+            to_user_raw = args[0]
         else:
             return await message.answer('Invalid syntax!')
 
-        to_user = to_user.replace("@", "").strip()
-        from_user = message.from_user.username
-        if from_user == to_user:
+        to_user = database.get_user(to_user_raw)
+
+        if to_user is None:
+            return await message.answer(f'User {to_user_raw} does not exists!')
+
+        if user.id == to_user.id:
             return await message.answer("You can't transfer to yourself!")
 
         me = await message.bot.me()
-        is_user_me = to_user == me.username
-        if is_user_me or not database.is_user_exists(to_user):
+        if to_user.id == me.id:
             await state.set_state(ConfirmationState.transfer_confirmation)
             await state.set_data({"to_user": to_user, "amount": amount})
             return await message.answer(
-                f"Are you sure you want to transfer {amount} to {'me 👉👈' if is_user_me else 'nonexistent user'} (y/n)?"
+                f"Are you sure you want to transfer {amount} to me 👉👈 (y/n)?"
             )
 
-        ledger.record_transaction(from_user, to_user, amount, "transfer")
+        ledger.record_transaction(user.id, to_user.id, amount, "transfer")
         return await message.answer(f"Successfully transferred {amount} to {to_user}!")
 
     @router.message(ConfirmationState.transfer_confirmation)
-    async def transfer(message: types.Message, state: FSMContext, ledger: Ledger):
+    async def transfer(message: types.Message, state: FSMContext, ledger: Ledger, user: UserProfile):
+        state_data = await state.get_data()
+        await state.clear()
         if message.text.lower() == "y":
-            state_data = await state.get_data()
             to_user, amount = state_data["to_user"], state_data["amount"]
-            from_user = message.from_user.username
-            ledger.record_transaction(from_user, to_user, amount, "transfer")
+            ledger.record_transaction(to_user.id, user.id, amount, "transfer")
             await message.answer(f"Successfully transferred {amount} to {to_user}!")
         else:
             await message.answer('abort')
-        return await state.clear()
 
     @router.message(Command("daily_prize"))
-    async def daily_prize_cmd(message: types.Message, gambler: Gambler):
-        if database.is_available_daily_prize(message.from_user.username):
-            return await gambler.daily_prize(message)
+    async def daily_prize_cmd(message: types.Message, gambler: Gambler, user: UserProfile):
+        if database.is_available_daily_prize(user.id):
+            return await gambler.daily_prize(message, user)
         else:
             return await message.answer('Your daily prize already obtained! Wait for the next day!')
 
@@ -309,19 +311,23 @@ def create_router():
     @router.message(Command("user_blocks"))
     async def user_blocks_cmd(message: types.Message, command: CommandObject):
         args = get_args(command, 0, 3)
-        if len(args) >= 1 and not args[0].isdigit():
-            username = clean_username(args[0])
+        if len(args) >= 1:
+            user_raw = args[0]
             args.pop(0)
         else:
-            username = await get_username_with_reply(message)
+            user_raw = await get_name_or_id_with_reply(message)
 
-        blocks_count = database.get_user_blocks_count(username)
+        user = database.get_user(user_raw)
+        if user is None:
+            return await message.answer(f"User {user} does not exist!")
+
+        blocks_count = database.get_user_blocks_count(user.id)
         limit = int(args[0]) if len(args) >= 1 else 50
         offset = blocks_count - int(args[1]) if len(args) == 2 else None
 
-        blocks = database.get_user_blocks(username, limit=limit, offset=offset)
+        blocks = database.get_user_blocks(user.id, limit=limit, offset=offset)
         return await large_respond(
-            message, [f"<b>Blocks {username} list ({blocks_count}):</b>"] + blocks, parse_mode='html'
+            message, [f"<b>Blocks {user} list ({blocks_count}):</b>"] + blocks, parse_mode='html'
         )
 
     @router.message(Command("mine_block"))
@@ -333,7 +339,7 @@ def create_router():
         return await message.answer(f"Block {block.height} successfully mined by {block.miner}!")
 
     @router.message(Command("mine"))
-    async def mine(message: types.Message, command: CommandObject, ledger: Ledger, user: UserModel):
+    async def mine(message: types.Message, command: CommandObject, ledger: Ledger, user: UserProfile):
         args = get_args(command, 0, 1)
         if len(args) == 1 and args[0].isdigit():
             nonce = int(args[0])
@@ -343,15 +349,14 @@ def create_router():
             nonce = user.nonce
 
         user.nonce = nonce
-        username = message.from_user.username
-        if seconds := database.is_unavailable_mine_attempt(username):
+        if seconds := database.is_unavailable_mine_attempt(user.id):
             return await message.answer(f"You already used your mine attempt. Next attempt in {seconds} seconds.")
 
         hashes = []
         failure_msg = None
         for i in range(storage.mine_block_user_attempts):
             try:
-                block = ledger.mine_block(username, nonce)
+                block = ledger.mine_block(user.id, nonce)
                 await message.answer_animation(
                     "https://media1.tenor.com/m/9qZhM0uswAYAAAAd/bully-maguire-dance.gif",
                     caption=f"<b>SUCCESS! BLOCK REWARD: {storage.mine_block_reward}!</b>\nBlock <b>{block.height}</b> with nonce <b>{block.nonce}</b> mined by <b>{block.miner}</b>!\nBlock hash: <b>{block.block_hash[:16]}...</b>.",
@@ -402,19 +407,20 @@ def create_router():
     @router.message(Command("user_stats"))
     async def user_stats_cmd(message: types.Message, command: CommandObject, ledger: Ledger):
         args = get_args(command, 0, 1)
-        username = await get_username_with_reply(message, args[0] if len(args) == 1 else None)
-        stats = database.get_user_stats(username)
+        user_raw = await get_name_or_id_with_reply(message, args[0] if len(args) == 1 else None)
+        user = database.get_user(user_raw)
+        stats = database.get_user_stats(user)
         if stats is None:
-            if username != ledger.genesis_username:
-                return await message.answer(f"No statistic for {username} found!")
+            if user.id != ledger.genesis_id:
+                return await message.answer(f"No statistic for {user} found!")
             stats = database.Stats()
 
         blackjack_winrate = f"{stats.blackjack_win / stats.blackjack_all:.1%}" if stats.blackjack_all != 0 else "undefined"
-        balance = ledger.get_user_balance(username)
-        total_gain = ledger.get_user_total_gain(username)
+        balance = ledger.get_user_balance(user.id)
+        total_gain = ledger.get_user_total_gain(user.id)
 
         lines = [
-            f"<b>{username} stats:</b>",
+            f"<b>{user} stats:</b>",
             f"Daily prizes opened: {stats.prizes}",
             f"Gamble attempts: {stats.gamble}",
             f"Galton attempts: {stats.galton}",
@@ -422,12 +428,12 @@ def create_router():
             f"Blackjack games played: {stats.blackjack_all}",
             f"Blackjack wins: {stats.blackjack_win}",
             f"Blackjack win rate: {blackjack_winrate}",
-            f"Blocks mined: {database.get_user_blocks_count(username)}",
-            f"Daily reward amount: {database.get_daily_amount_for_user(username)}",
+            f"Blocks mined: {database.get_user_blocks_count(user.id)}",
+            f"Daily reward amount: {database.get_daily_amount_for_user(user.id)}",
             f"Balance: {balance}",
             # f"Total gain: {total_gain}",
             # f"Total loss: {total_gain - balance}",
-            f"Max balance recorded: {ledger.get_user_max_balance(username)}"
+            f"Max balance recorded: {ledger.get_user_max_balance(user.id)}"
         ]
 
         return await large_respond(message, lines, parse_mode='html')
@@ -436,7 +442,7 @@ def create_router():
     async def global_stats_cmd(message: types.Message, ledger: Ledger):
         totals = database.get_total_stats()
         max_balance = ledger.get_all_max_balances()[1]
-        total_balance = sum(balance for _, balance in ledger.get_all_balances())
+        total_balance = sum(balance for _, balance in ledger.get_all_balances()[1:])
         total_gain = sum(gain for _, gain in ledger.get_all_total_gains())
 
         blackjack_winrate = f"{totals["blackjack_win"] / totals["blackjack_all"]:.1%}" \
@@ -451,9 +457,9 @@ def create_router():
             f"Blackjack games played: {totals["blackjack_all"]}",
             f"Blackjack wins: {totals["blackjack_win"]}",
             f"Blackjack win rate: {blackjack_winrate}",
-            f"Blocks mined: {database.get_total_users_blocks_count(ledger.genesis_username)}",
+            f"Blocks mined: {database.get_total_users_blocks_count(ledger.genesis_id)}",
             f"Daily reward amount: {database.get_total_daily_amount()}",
-            # f"Total balance: {total_balance}",
+            f"Total balance: {total_balance}",
             # f"Total gain: {total_gain}",
             # f"Total loss: {total_gain - total_balance}",
             f"Max balance recorded ({max_balance[0]}): {max_balance[1]}"
@@ -462,14 +468,13 @@ def create_router():
         return await large_respond(message, lines, parse_mode='html')
 
     @router.message(Command("galton_background"))
-    async def galton_background_cmd(message: types.Message, state: FSMContext):
+    async def galton_background_cmd(message: types.Message, state: FSMContext, user: UserProfile):
         if not message.reply_to_message or message.reply_to_message.photo is None:
             return await message.answer("You need to reply to a message with image!")
 
         photo = message.reply_to_message.photo[-1]
         file = await message.bot.get_file(photo.file_id)
-        username = message.from_user.username
-        filename = galton_backgrounds_folder_path / f"{username}-temp.png"
+        filename = galton_backgrounds_folder_path / f"{user}-temp.png"
         await message.bot.download_file(file.file_path, filename)
 
         background_filename = PhysicsSimulation().get_test_background(filename)
@@ -482,16 +487,15 @@ def create_router():
         return await state.set_state(ConfirmationState.galton_background_confirmation)
 
     @router.message(ConfirmationState.galton_background_confirmation)
-    async def galton_background(message: types.Message, state: FSMContext, ledger: Ledger):
+    async def galton_background(message: types.Message, state: FSMContext, ledger: Ledger, user: UserProfile):
         if message.text.lower() == "y":
             tmp_filename: Path = (await state.get_data()).get("filename")
-            from_user = message.from_user.username
-            ledger.record_deposit(from_user, 1000, "Background galton")
+            ledger.record_deposit(user.id, 1000, "Background galton")
 
-            filename = tmp_filename.parent / f"{from_user}.png"
+            filename = tmp_filename.parent / f"{user}.png"
             tmp_filename.rename(filename)
 
-            database.set_galton_background_path(from_user, str(filename))
+            database.set_galton_background_path(user.id, str(filename))
             await message.answer(f"Successfully set galton background!")
         else:
             await message.answer('abort')

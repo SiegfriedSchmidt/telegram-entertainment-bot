@@ -7,7 +7,7 @@ from lib import database
 from lib.models import GainType, StatsType
 from lib.physics_simulation import PhysicsSimulation
 from lib.storage import storage
-from lib.models import UserModel
+from lib.temporal_storage import UserProfile
 from lib.utils.general_utils import run_in_thread
 
 gamble_multipliers = {
@@ -79,7 +79,7 @@ class Gambler:
         else:
             return GainType.loss
 
-    async def validate_bet(self, username: str, user_bet: str | int) -> int:
+    async def validate_bet(self, user: UserProfile, user_bet: str | int) -> int:
         if isinstance(user_bet, int):
             bet = user_bet
         elif user_bet.isdigit():
@@ -90,17 +90,17 @@ class Gambler:
         if bet < 0:
             raise RuntimeError("Bet cannot be negative!")
 
-        balance = self.ledger.get_user_balance(username)
+        balance = self.ledger.get_user_balance(user.id)
         if balance < bet:
             raise RuntimeError(f"You don't have enough money: {balance} < {bet}!")
 
         return int(bet)
 
-    def get_balance_str(self, username: str) -> str:
-        return f'{username}: {self.ledger.get_user_balance(username)} coins.'
+    def get_balance_str(self, user: UserProfile) -> str:
+        return f'{user}: {self.ledger.get_user_balance(user.id)} coins.'
 
-    async def gamble(self, message: types.Message, user: UserModel, user_bet: str = None):
-        bet = await self.validate_bet(user.username, user.gamble_bet if user_bet is None else user_bet)
+    async def gamble(self, message: types.Message, user: UserProfile, user_bet: str = None):
+        bet = await self.validate_bet(user, user.gamble_bet if user_bet is None else user_bet)
 
         if bet < 20:
             return await message.reply("Bet should be greater than 20!")
@@ -111,16 +111,16 @@ class Gambler:
         gain_type = self.determine_gain_type(dice_msg.dice.value)
         gain = int(gamble_multipliers[gain_type] * bet)
 
-        database.update_user_stats(user.username, StatsType.gamble)
-        self.ledger.record_deposit(user.username, bet, "Gamble bet")
+        database.update_user_stats(user.id, StatsType.gamble)
+        self.ledger.record_deposit(user.id, bet, "Gamble bet")
         if gain:
-            self.ledger.record_gain(user.username, gain, f"Gamble gain X{gamble_multipliers[gain_type]}")
+            self.ledger.record_gain(user.id, gain, f"Gamble gain X{gamble_multipliers[gain_type]}")
 
         await asyncio.sleep(1.5)
-        return await self.show_win_message(dice_msg, gain_type, self.get_balance_str(user.username))
+        return await self.show_win_message(dice_msg, gain_type, self.get_balance_str(user))
 
-    async def galton(self, message: types.Message, user: UserModel, user_bet: str = None, user_balls: str = None):
-        bet = await self.validate_bet(user.username, user.galton_bet if user_bet is None else user_bet)
+    async def galton(self, message: types.Message, user: UserProfile, user_bet: str = None, user_balls: str = None):
+        bet = await self.validate_bet(user, user.galton_bet if user_bet is None else user_bet)
         balls = user.galton_balls if user_balls is None else int(user_balls)
 
         if user.galton_running_count >= storage.galton_max_concurrent_per_user:
@@ -140,11 +140,11 @@ class Gambler:
         user.galton_bet = bet
         user.galton_balls = balls
         user.galton_running_count += 1
-        database.update_user_stats(user.username, StatsType.galton)
-        self.ledger.record_deposit(user.username, bet, "Galton bet")
+        database.update_user_stats(user.id, StatsType.galton)
+        self.ledger.record_deposit(user.id, bet, "Galton bet")
 
         physics_simulation = PhysicsSimulation()
-        background_path = database.get_galton_background_path(user.username)
+        background_path = database.get_galton_background_path(user.id)
         multiplier, filename, duration = await run_in_thread(physics_simulation.run, balls, background_path)
 
         animation = FSInputFile(filename, filename=str(filename))
@@ -156,21 +156,20 @@ class Gambler:
         gain = int(multiplier * bet_per_ball)
         multiplier = round(multiplier / balls, 2)
         if gain:
-            self.ledger.record_gain(user.username, gain, f"Galton gain X{multiplier}")
+            self.ledger.record_gain(user.id, gain, f"Galton gain X{multiplier}")
 
         return await galton_msg.edit_caption(
-            caption=f"Multiplier <b>X{multiplier}</b>! {self.get_balance_str(user.username)}", parse_mode="HTML"
+            caption=f"Multiplier <b>X{multiplier}</b>! {self.get_balance_str(user)}", parse_mode="HTML"
         )
 
-    async def daily_prize(self, message: types.Message):
-        username = message.from_user.username
+    async def daily_prize(self, message: types.Message, user: UserProfile):
         dice_msg = await self.get_dice_msg(message)
         gain_type = self.determine_gain_type(dice_msg.dice.value)
         gain = daily_multipliers[gain_type]
-        self.ledger.record_gain(username, gain, f"Daily {gain_type.value}")
+        self.ledger.record_gain(user.id, gain, f"Daily {gain_type.value}")
 
         await asyncio.sleep(1.5)
-        return await self.show_win_message(dice_msg, gain_type, self.get_balance_str(username))
+        return await self.show_win_message(dice_msg, gain_type, self.get_balance_str(user))
 
 
 if __name__ == '__main__':

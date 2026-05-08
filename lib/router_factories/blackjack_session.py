@@ -27,7 +27,7 @@ def create_router():
             await state.clear()
             return await callback.message.edit_media(media)
 
-        return await callback.message.edit_media(media, reply_markup=get_blackjack_keyboard(blackjack.username))
+        return await callback.message.edit_media(media, reply_markup=get_blackjack_keyboard(blackjack.user.id))
 
     @router.callback_query(BlackjackCallback.filter(F.action == "stand"))
     async def stand_cmd(callback: types.CallbackQuery, state: FSMContext):

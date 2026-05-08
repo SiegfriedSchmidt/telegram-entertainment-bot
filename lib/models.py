@@ -16,7 +16,8 @@ class BaseEnum(Enum, metaclass=MetaEnum):
 
 
 class UserModel(BaseModel):
-    username: str
+    id: int
+    username: str | None
     nonce: int
     gamble_bet: int
     galton_bet: int

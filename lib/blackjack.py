@@ -6,6 +6,7 @@ from lib.init import blackjack_assets_folder_path, tmp_folder_path
 from lib.ledger import Ledger
 from lib.models import BlackjackResultType, StatsType
 from lib import database
+from lib.temporal_storage import UserProfile
 from lib.utils.cv2_utils import cv2_paste_with_alpha
 
 table = cv2.imread(blackjack_assets_folder_path / "background.png", cv2.IMREAD_UNCHANGED)
@@ -82,21 +83,21 @@ def is_blackjack(hand: list[str]) -> bool:
 
 
 class Blackjack:
-    def __init__(self, ledger: Ledger, username: str, bet: str | int):
+    def __init__(self, ledger: Ledger, user: UserProfile, bet: str | int):
         self.deck: list[str] = list(cards.keys())
         random.shuffle(self.deck)
 
         self.dealer_hand: list[str] = []
         self.player_hand: list[str] = []
         self.ledger = ledger
-        self.username = username
+        self.user = user
         self.bet = int(bet)
         self.process_bet()
 
     def process_bet(self):
         if self.bet < 100:
             raise RuntimeError("Bet should be more than 100!")
-        self.ledger.record_deposit(self.username, self.bet, "Blackjack bet")
+        self.ledger.record_deposit(self.user.id, self.bet, "Blackjack bet")
 
     def get_random_card(self) -> str:
         return self.deck.pop()
@@ -125,13 +126,13 @@ class Blackjack:
         caption, multiplier = self._get_caption_and_multiplier(result)
         gain = int(self.bet * multiplier)
         if gain:
-            self.ledger.record_gain(self.username, gain, f"Blackjack gain X{multiplier}")
+            self.ledger.record_gain(self.user.id, gain, f"Blackjack gain X{multiplier}")
 
         database.update_user_stats(
-            self.username,
+            self.user.id,
             StatsType.blackjack_win if result == BlackjackResultType.win else StatsType.blackjack_all
         )
-        return caption + f" X{multiplier}! {self.username}: {self.ledger.get_user_balance(self.username)}."
+        return caption + f" X{multiplier}! {self.user}: {self.ledger.get_user_balance(self.user.id)}."
 
     def start(self) -> str:
         self.dealer_hand.append(self.get_random_card())

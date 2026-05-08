@@ -47,6 +47,10 @@ def remove_file(path: Path) -> int:
     return filesize
 
 
+def get_name(username: str, user_id: int | str) -> str:
+    return username if username else str(user_id)
+
+
 def from_iso(timestamp: str) -> str:
     return datetime.strftime(datetime.fromisoformat(timestamp), "%Y-%m-%d %H:%M:%S")
 

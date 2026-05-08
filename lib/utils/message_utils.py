@@ -6,8 +6,6 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import CommandObject
 from aiogram.types import ChatMemberAdministrator, ChatMemberOwner
 
-from lib.utils.general_utils import clean_username
-
 
 def get_args(command: CommandObject, min_args=-1, max_args=-1) -> List[str]:
     args = command.args.split() if command.args else []
@@ -41,15 +39,15 @@ async def save_document(message: types.Message, path: str | Path) -> None:
         f.write(downloaded_file.read())
 
 
-async def get_username_with_reply(message: types.Message, arg: str | None = None) -> str:
+async def get_name_or_id_with_reply(message: types.Message, arg: str | None = None) -> str | int:
     if message.reply_to_message:
-        username = message.reply_to_message.from_user.username
+        name_or_id = message.reply_to_message.from_user.id
     elif arg is not None:
-        username = clean_username(arg)
+        name_or_id = arg
     else:
-        username = message.from_user.username
+        name_or_id = message.from_user.id
 
-    return username
+    return name_or_id
 
 
 @runtime_checkable

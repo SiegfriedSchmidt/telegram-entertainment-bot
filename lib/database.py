@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, cast
+# noinspection PyUnresolvedReferences
+from playhouse.mysql_ext import JSONField
 from lib.config_reader import config
 from lib.logger import peewee_logger
 from lib.init import database_file_path
 from lib.models import StatsType
 from lib.storage import storage
-from lib.utils.general_utils import used_today, from_iso
+from lib.utils.general_utils import used_today, from_iso, get_name, clean_username
 from peewee import *
 
 db = SqliteDatabase(database_file_path)
@@ -17,10 +19,14 @@ class BaseModel(Model):
 
 
 class User(BaseModel):
-    username = CharField(unique=True, primary_key=True)
+    id = IntegerField(unique=True, primary_key=True)
+    username = CharField(null=True)
     daily_prize_time = DateTimeField(default=datetime(1980, 1, 1))
     mine_attempt_time = DateTimeField(default=datetime(1980, 1, 1))
     galton_background_path = CharField(max_length=256, null=True)
+
+    def __str__(self):
+        return get_name(str(self.username), str(self.id))
 
 
 class Stats(BaseModel):
@@ -42,6 +48,8 @@ class Block(BaseModel):
     prev_hash = CharField(max_length=64)
     block_hash = CharField(max_length=64, unique=True)
 
+    extra = JSONField(null=True, default=dict)
+
     def __str__(self):
         return f'Block: {self.height}, miner: {self.miner}, nonce: {self.nonce}, hash: {self.block_hash[:16]}..., timestamp: {from_iso(str(self.timestamp))}'
 
@@ -53,16 +61,20 @@ class Block(BaseModel):
 
 class Transaction(BaseModel):
     number = AutoField()
-    block = ForeignKeyField(Block, null=True, backref='transactions')  # None = pending
+    block = ForeignKeyField(Block, null=True, backref='transactions')  # NULL = pending
     timestamp = DateTimeField()
-    from_user = ForeignKeyField(User, null=True, backref='sent')
+    from_user = ForeignKeyField(User, null=True, backref='sent')  # NULL = coinbase
     to_user = ForeignKeyField(User, backref='received')
-    amount = DecimalField(decimal_places=64, constraints=[Check('amount > 0')])
+    amount = BigIntegerField(constraints=[Check('amount > 0')])
+    fee = BigIntegerField(default=0)
     description = TextField(null=True)
     tx_hash = CharField(max_length=64, unique=True)
 
     def __str__(self):
-        return f'{self.number}. {"pending" if self.block is None else f"block {self.block.height}"} - {self.from_user} -> {self.to_user}, {self.amount}, {self.description}'
+        return (
+            f'{self.number}. {"pending" if self.block is None else f"block {self.block.height}"} - '
+            f'{self.from_user if self.from_user else "Coinbase"} -> {self.to_user}, {self.amount}, {self.description}'
+        )
 
     class Meta:
         indexes = (
@@ -79,19 +91,45 @@ peewee_logger.info("Connected to database.")
 peewee_logger.disabled = True
 
 
-def is_user_exists(username: str) -> bool:
-    return User.get_or_none(username=username) is not None
+def get_user(name_or_id: str | int) -> User | None:
+    if isinstance(name_or_id, int) or name_or_id.isdigit():
+        return User.get_or_none(id=int(name_or_id))
+    else:
+        return User.get_or_none(username=clean_username(name_or_id))
 
 
-def get_user_stats(username: str) -> Stats | None:
-    user = User.get_or_none(username=username)
+def create_user(user_id: int, username: str | None) -> User:
+    user = User.get_or_create(id=user_id)[0]
+    if user.username != username:
+        user.username = username
+        user.save()
+    return user
+
+
+def get_user_or_exception(user_id: int) -> User:
+    user: User | None = User.get_or_none(id=user_id)
+    if user is None:
+        raise RuntimeError(f'User {user_id} does not exist!')
+    return user
+
+
+def cast_datetime(dtf: DateTimeField) -> datetime:
+    return cast(datetime, cast(object, dtf))  # Ridiculous btw
+
+
+def get_user_stats(user_or_id: int | User) -> Stats | None:
+    if isinstance(user_or_id, int):
+        user = User.get_or_none(user_or_id)
+    else:
+        user = user_or_id
+
     if user is None:
         return None
     return user.stats.first()
 
 
-def reset_daily_prize_time_for_user(username: str) -> None:
-    user: User | None = User.get_or_none(username=username)
+def reset_daily_prize_time_for_user(user_id: int) -> None:
+    user: User | None = User.get_or_none(id=user_id)
     if user is None:
         return
 
@@ -99,8 +137,8 @@ def reset_daily_prize_time_for_user(username: str) -> None:
     user.save()
 
 
-def get_daily_amount_for_user(username: str) -> int:
-    user = User.get_or_none(username=username)
+def get_daily_amount_for_user(user_id: int) -> int:
+    user = User.get_or_none(id=user_id)
     if user is None:
         return 0
 
@@ -117,15 +155,15 @@ def get_daily_amount_for_user(username: str) -> int:
     return int(total) if total is not None else 0
 
 
-def get_galton_background_path(username: str) -> str | None:
-    user = User.get_or_none(username=username)
+def get_galton_background_path(user_id: int) -> str | None:
+    user = User.get_or_none(id=user_id)
     if user is None:
         return None
     return user.galton_background_path
 
 
-def set_galton_background_path(username: str, path: str) -> None:
-    user: User = User.get_or_create(username=username)[0]
+def set_galton_background_path(user_id: int, path: str) -> None:
+    user: User = get_user_or_exception(user_id)
     user.galton_background_path = path
     user.save()
 
@@ -157,26 +195,26 @@ def get_total_stats():
     return {k: (v or 0) for k, v in totals.items()}
 
 
-def get_user_blocks_count(username: str) -> int:
-    user = User.get_or_none(username=username)
+def get_user_blocks_count(user_id: int) -> int:
+    user = User.get_or_none(id=user_id)
     if user is None:
         return 0
 
     return user.blocks.count()
 
 
-def get_total_users_blocks_count(genesis_username: str) -> int:
-    genesis_user = User.get_or_none(username=genesis_username)
+def get_total_users_blocks_count(genesis_user_id: int) -> int:
+    genesis_user = User.get_or_none(id=genesis_user_id)
     if genesis_user is None:
         return -1
     return Block.select().where(Block.miner != genesis_user).count()
 
 
-def update_user_stats(user_or_name: str | User, stat_type: StatsType, increment: int = 1):
-    if isinstance(user_or_name, str):
-        user: User = User.get_or_create(username=user_or_name)[0]
-    elif isinstance(user_or_name, User):
-        user = user_or_name
+def update_user_stats(user_or_id: int | User, stat_type: StatsType, increment: int = 1):
+    if isinstance(user_or_id, int):
+        user: User = get_user_or_exception(user_or_id)
+    elif isinstance(user_or_id, User):
+        user = user_or_id
     else:
         raise TypeError("user_or_name must be str or User!")
 
@@ -199,9 +237,9 @@ def update_user_stats(user_or_name: str | User, stat_type: StatsType, increment:
     stats.save()
 
 
-def is_available_daily_prize(username: str) -> bool:
-    user = User.get_or_create(username=username)[0]
-    if not used_today(user.daily_prize_time, config.day_start_time):
+def is_available_daily_prize(user_id: int) -> bool:
+    user = get_user_or_exception(user_id)
+    if not used_today(cast_datetime(user.daily_prize_time), config.day_start_time):
         user.daily_prize_time = datetime.now()
         update_user_stats(user, StatsType.prizes)
         user.save()
@@ -209,10 +247,10 @@ def is_available_daily_prize(username: str) -> bool:
     return False
 
 
-def is_unavailable_mine_attempt(username: str) -> int:
-    user = User.get_or_create(username=username)[0]
+def is_unavailable_mine_attempt(user_id: int) -> int:
+    user = get_user_or_exception(user_id)
     now = datetime.now()
-    delta = timedelta(seconds=storage.mine_block_user_timeout) - (now - user.mine_attempt_time)
+    delta = timedelta(seconds=storage.mine_block_user_timeout) - (now - cast_datetime(user.mine_attempt_time))
     seconds_left = int(delta.total_seconds())
     if seconds_left <= 0:
         user.mine_attempt_time = now
@@ -222,11 +260,11 @@ def is_unavailable_mine_attempt(username: str) -> int:
     return seconds_left
 
 
-def get_user_transactions(username: str, limit: Optional[int] = None) -> list[Transaction]:
+def get_user_transactions(user_id: int, limit: Optional[int] = None) -> list[Transaction]:
     return list(
         Transaction
         .select()
-        .where((Transaction.from_user.username == username) | (Transaction.to_user.username == username))
+        .where((Transaction.from_user.user_id == user_id) | (Transaction.to_user.user_id == user_id))
         .order_by(Transaction.number.desc())
         .limit(limit)
     )
@@ -278,12 +316,12 @@ def get_transactions_count() -> int:
     return Transaction.select().count()
 
 
-def get_user_blocks(username: str, offset: Optional[int] = None, limit: Optional[int] = None, ascending=False) -> list[
+def get_user_blocks(user_id: int, offset: Optional[int] = None, limit: Optional[int] = None, ascending=False) -> list[
     Block]:
     return list(
         Block
         .select()
-        .where(Block.miner == username)
+        .where(Block.miner == user_id)
         .order_by(Block.height.asc() if ascending else Block.height.desc())
         .offset(offset)
         .limit(limit)
