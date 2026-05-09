@@ -251,7 +251,7 @@ def create_router():
         await state.clear()
         if message.text.lower() == "y":
             to_user, amount = state_data["to_user"], state_data["amount"]
-            ledger.record_transaction(to_user.id, user.id, amount, "transfer")
+            ledger.record_transaction(user.id, to_user.id, amount, "transfer")
             await message.answer(f"Successfully transferred {amount} to {to_user}!")
         else:
             await message.answer('abort')
@@ -359,7 +359,9 @@ def create_router():
                 block = ledger.mine_block(user.id, nonce)
                 await message.answer_animation(
                     "https://media1.tenor.com/m/9qZhM0uswAYAAAAd/bully-maguire-dance.gif",
-                    caption=f"<b>SUCCESS! BLOCK REWARD: {storage.mine_block_reward}!</b>\nBlock <b>{block.height}</b> with nonce <b>{block.nonce}</b> mined by <b>{block.miner}</b>!\nBlock hash: <b>{block.block_hash[:16]}...</b>.",
+                    caption=f"<b>SUCCESS! BLOCK REWARD: {block.base_reward + block.total_fees} (fees {block.total_fees})!"
+                            f"</b>\nBlock <b>{block.height}</b> with nonce <b>{block.nonce}</b> mined by <b>{block.miner}</b>!\n"
+                            f"Block hash: <b>{block.block_hash[:16]}...</b>.",
                     parse_mode='html'
                 )
                 break

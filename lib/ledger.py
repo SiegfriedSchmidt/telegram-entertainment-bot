@@ -10,6 +10,8 @@ from lib import database
 from lib.database import db, User, Transaction, Block
 from lib.logger import ledger_logger
 
+MONEY_TYPE = int | str | float
+
 GENESIS_BLOCK_REWARD = int(1e9)
 EMPTY_HASH = "0" * 64
 mining_lock = Lock()
@@ -64,11 +66,16 @@ def compute_merkle_root(tx_hashes: list[str]) -> str:
     return level[0].hex()
 
 
+def reward_function(base_reward: int, block_number: int) -> int:
+    return base_reward + block_number * 0
+
+
 class Ledger:
-    def __init__(self, block_reward: int, difficulty=2):
-        self.block_reward = block_reward
+    def __init__(self, base_block_reward: int, difficulty=2):
+        self.base_block_reward = base_block_reward
         self.difficulty = "0" * difficulty
         self.genesis_id = 0
+        self.fee_percentage = 0
         self.__balances: dict[int, int] = dict()
         self.__max_balances: dict[int, int] = dict()
         self.__total_gain: dict[int, int] = dict()
@@ -81,28 +88,33 @@ class Ledger:
             self.__mine_block(genesis_user, GENESIS_BLOCK_REWARD, "Genesis block reward")
             ledger_logger.info("Genesis block created!")
 
-    def __update_balance(self, from_user: User | None, to_user: User, amount: int) -> None:
-        if from_user:
-            if from_user.id not in self.__balances or self.__balances[from_user.id] < amount:
-                raise BalanceError("Negative balance detected!")
-            self.__balances[from_user.id] -= amount
+    def __update_balance(self, tx: Transaction) -> None:
+        if tx.from_user:
+            deduction = tx.amount + tx.fee
+            if tx.from_user.id not in self.__balances or self.__balances[tx.from_user.id] < deduction:
+                raise BalanceError(f"Insufficient balance! {self.__balances[tx.from_user.id]} < {deduction}")
+            self.__balances[tx.from_user.id] -= deduction
 
-        if to_user.id not in self.__balances:
-            self.__balances[to_user.id] = amount
-            self.__total_gain[to_user.id] = amount
-            self.__max_balances[to_user.id] = self.__balances[to_user.id]
+        if tx.to_user.id not in self.__balances:
+            self.__balances[tx.to_user.id] = tx.amount
+            self.__total_gain[tx.to_user.id] = tx.amount
+            self.__max_balances[tx.to_user.id] = self.__balances[tx.to_user.id]
         else:
-            self.__balances[to_user.id] += amount
-            self.__total_gain[to_user.id] += amount
-            self.__max_balances[to_user.id] = max(self.__max_balances[to_user.id], self.__balances[to_user.id])
+            self.__balances[tx.to_user.id] += tx.amount
+            self.__total_gain[tx.to_user.id] += tx.amount
+            self.__max_balances[tx.to_user.id] = max(self.__max_balances[tx.to_user.id], self.__balances[tx.to_user.id])
 
     def __update_balance_transactions(self, txs: list[Transaction]) -> None:
         for tx in txs:
-            self.__update_balance(tx.from_user, tx.to_user, tx.amount)
+            self.__update_balance(tx)
 
     def __revert_balance_transactions(self, txs: list[Transaction]) -> None:
         for tx in txs:
-            self.__update_balance(tx.to_user, tx.from_user, tx.amount)
+            self.__update_balance(tx)
+
+    @staticmethod
+    def calculate_total_fees(txs: list[Transaction]):
+        return sum(tx.fee for tx in txs)
 
     def load_and_verify_chain(self, genesis_id: int, genesis_username: str):
         self.genesis_id = genesis_id
@@ -122,7 +134,7 @@ class Ledger:
                     f"Genesis user id mismatch! '{blocks[0].miner.id}' != '{self.genesis_id}'"
                 )
 
-            prev_hash = EMPTY_HASH
+            prev_block = Block(height=-1, block_hash=EMPTY_HASH)
             for block in blocks:
                 txs = database.get_block_transactions(block, ascending=True)
 
@@ -138,6 +150,7 @@ class Ledger:
 
                 coinbase_tx = txs[-1]
                 miner_user_id = coinbase_tx.to_user.id
+                miner = database.get_user_or_exception(miner_user_id)
                 if miner_user_id != block.miner.id:
                     raise BlockchainBroken(
                         block.height,
@@ -145,10 +158,18 @@ class Ledger:
                     )
 
                 miner_reward = coinbase_tx.amount
-                if block.height != 0 and miner_reward != self.block_reward:
+                total_fees = self.calculate_total_fees(txs)
+                expected_base_reward = reward_function(self.base_block_reward, block.height)
+                if block.height != 0 and (
+                        block.base_reward != expected_base_reward or block.total_fees != total_fees or miner_reward != expected_base_reward + total_fees
+                ):
                     raise BlockchainBroken(
                         block.height,
-                        f"Transaction miner reward: {miner_reward}, block miner reward: {self.block_reward}"
+                        f"Transaction coinbase amount: {miner_reward}, "
+                        f"transaction total fees: {total_fees}, "
+                        f"block base reward: {block.base_reward}, "
+                        f"block total fees: {block.total_fees}, "
+                        f"expected base reward: {expected_base_reward}"
                     )
 
                 merkle_root = compute_merkle_root([tx.tx_hash for tx in txs])
@@ -157,28 +178,23 @@ class Ledger:
                         block.height, f"Transactions merkle root: {merkle_root}, block merkle root: {block.merkle_root}"
                     )
 
-                block_data = {
-                    "height": block.height,
-                    "timestamp": block.timestamp,
-                    "miner": miner_user_id,
-                    "merkle_root": merkle_root,
-                    "nonce": block.nonce,
-                    "prev_hash": prev_hash,
-                }
-                computed_hash = compute_hash(block_data)
-
-                if computed_hash != block.block_hash:
+                try:
+                    expected_block = self.__create_block(
+                        miner, merkle_root, prev_block, block.base_reward, block.total_fees, block.nonce,
+                        block.timestamp
+                    )
+                except BlockNotMined as e:
                     raise BlockchainBroken(
-                        block.height, f"Block hash: {block.block_hash}, computed hash: {computed_hash}"
+                        block.height, f"Computed hash: {e.block_hash}, difficulty: {self.difficulty}"
                     )
 
-                if not self.check_hash_difficulty(computed_hash):
+                if expected_block.block_hash != block.block_hash:
                     raise BlockchainBroken(
-                        block.height, f"Computed hash: {computed_hash}, difficulty: {self.difficulty}"
+                        block.height, f"Block hash: {block.block_hash}, expected hash: {expected_block.block_hash}"
                     )
 
                 self.__update_balance_transactions(txs)
-                prev_hash = computed_hash
+                prev_block = block
 
         self.__update_balance_transactions(database.get_pending_transactions(ascending=True))
         self.mine_block()
@@ -203,20 +219,23 @@ class Ledger:
 
             return self.__mine_block(miner=miner, pending_txs=pending_txs, nonce=nonce)
 
-    def __mine_block(self, miner: User, miner_reward: int = None, tx_description="Block reward",
+    def __mine_block(self, miner: User, base_reward: int = None, tx_description="Block reward",
                      pending_txs: list[Transaction] = None, nonce: int = None) -> Block:
-        if miner_reward is None:
-            miner_reward = self.block_reward
+        last_block = database.get_last_block()
+        if base_reward is None:
+            base_reward = reward_function(self.base_block_reward, last_block.height)
         if pending_txs is None:
             pending_txs = []
 
         with db.atomic():
-            coinbase_tx = self.__create_transaction(None, miner.id, miner_reward, tx_description)
+            total_fees = self.calculate_total_fees(pending_txs)
+            coinbase_tx = self.__create_transaction(None, miner.id, base_reward + total_fees, tx_description)
             pending_txs += [coinbase_tx]
             merkle_root = compute_merkle_root([tx.tx_hash for tx in pending_txs])
 
-            block = self.__create_block(miner, merkle_root, nonce)
+            block = self.__create_block(miner, merkle_root, last_block, base_reward, total_fees, nonce)
             self.__record_transaction(coinbase_tx)
+            block.save(force_insert=True)
 
             for tx in pending_txs:
                 tx.block = block
@@ -227,8 +246,11 @@ class Ledger:
             )
             return block
 
-    def __create_block(self, miner: User, merkle_root: str, nonce: int = None) -> Block:
-        last_block = Block.select(Block.height, Block.block_hash).order_by(Block.height.desc()).first()
+    def __create_block(self, miner: User, merkle_root: str, last_block: Block,
+                       base_reward: int, total_fees: int, nonce: int = None, timestamp: str = None) -> Block:
+        if timestamp is None:
+            timestamp = datetime.now().isoformat()
+
         if last_block is None:
             height = 0
             prev_hash = EMPTY_HASH
@@ -239,8 +261,10 @@ class Ledger:
         block_data = dict()
         block_data.update({
             "height": height,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": timestamp,
             "miner": miner.id,
+            "base_reward": base_reward,
+            "total_fees": total_fees,
             "merkle_root": merkle_root,
             "prev_hash": prev_hash
         })
@@ -251,7 +275,7 @@ class Ledger:
             raise BlockNotMined(height, block_data["block_hash"])
 
         block_data["miner"] = miner
-        return Block.create(**block_data)
+        return Block(**block_data)
 
     def __mine_nonce(self, block_data: dict) -> int:
         nonce = 0
@@ -263,21 +287,22 @@ class Ledger:
             nonce += 1
         return nonce
 
-    def __create_transaction(self, from_user_id: int | None, to_user_id: int, amount: int | str | float,
-                             description: str = None, timestamp: str = None) -> Transaction:
+    @staticmethod
+    def __create_transaction(from_user_id: int | None, to_user_id: int, amount: MONEY_TYPE,
+                             description: str = None, timestamp: str = None, fee: MONEY_TYPE = 0) -> Transaction:
         amount = int(amount)
+        fee = int(fee)
 
         if amount <= 0:
             raise BalanceError("Amount must be positive")
-        if from_user_id and self.__balances.get(from_user_id, 0) < amount:
-            raise BalanceError("Insufficient balance")
 
         tx_data = dict()
         tx_data.update({
             "timestamp": datetime.now().isoformat() if timestamp is None else timestamp,
             "from_user": from_user_id if from_user_id else None,
             "to_user": to_user_id,
-            "amount": int(amount),
+            "amount": amount,
+            "fee": fee,
             "description": description,
         })
 
@@ -287,20 +312,22 @@ class Ledger:
         return Transaction(**tx_data)
 
     def __record_transaction(self, tx: Transaction):
-        self.__update_balance(tx.from_user, tx.to_user, tx.amount)
+        self.__update_balance(tx)
         ledger_logger.info(f"Transaction recorded {tx.from_user} -> {tx.to_user}: {tx.amount}, {tx.description}")
 
-    def record_transaction(self, from_user_id: int, to_user_id: int, amount: int | str | float,
+    def record_transaction(self, from_user_id: int, to_user_id: int, amount: MONEY_TYPE,
                            description: str = None, timestamp: str = None) -> Transaction:
-        tx = self.__create_transaction(from_user_id, to_user_id, amount, description, timestamp)
+        tx = self.__create_transaction(
+            from_user_id, to_user_id, amount, description, timestamp, int(int(amount) * self.fee_percentage)
+        )
         self.__record_transaction(tx)
         tx.save()
         return tx
 
-    def record_deposit(self, from_user_id: int, amount: int | str | float, description: str = None):
+    def record_deposit(self, from_user_id: int, amount: MONEY_TYPE, description: str = None):
         self.record_transaction(from_user_id, self.genesis_id, amount, description)
 
-    def record_gain(self, to_user_id: int, amount: int | str | float, description: str = None):
+    def record_gain(self, to_user_id: int, amount: MONEY_TYPE, description: str = None):
         self.record_transaction(self.genesis_id, to_user_id, amount, description)
 
     def get_user_balance(self, user_id: int) -> int:

@@ -15,7 +15,8 @@ FFMPEG_PRESET = Literal['fast', 'veryfast', 'medium', 'slow', 'veryslow']
 @dataclass
 class PersistentData:
     notifications_enabled: bool = True
-    mine_block_interval_seconds: int = 600
+    fee_percentage: int = 0.1
+    mine_block_interval_seconds: int = 86400
     mine_block_reward: int = 2000
     mine_block_user_timeout: int = 300
     mine_block_user_attempts: int = 16

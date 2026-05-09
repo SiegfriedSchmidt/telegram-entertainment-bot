@@ -42,7 +42,11 @@ class Stats(BaseModel):
 class Block(BaseModel):
     height = IntegerField(unique=True, primary_key=True)
     timestamp = DateTimeField()
+
     miner = ForeignKeyField(User, backref='blocks')
+    base_reward = BigIntegerField()
+    total_fees = BigIntegerField()
+
     merkle_root = CharField(max_length=64)
     nonce = IntegerField()
     prev_hash = CharField(max_length=64)
@@ -51,7 +55,9 @@ class Block(BaseModel):
     extra = JSONField(null=True, default=dict)
 
     def __str__(self):
-        return f'Block: {self.height}, miner: {self.miner}, nonce: {self.nonce}, hash: {self.block_hash[:16]}..., timestamp: {from_iso(str(self.timestamp))}'
+        return (f'Block: {self.height}, miner: {self.miner}, base reward: {self.base_reward}, '
+                f'total fees: {self.total_fees} nonce: {self.nonce}, hash: {self.block_hash[:16]}..., '
+                f'timestamp: {from_iso(str(self.timestamp))}')
 
     class Meta:
         indexes = (
@@ -73,7 +79,7 @@ class Transaction(BaseModel):
     def __str__(self):
         return (
             f'{self.number}. {"pending" if self.block is None else f"block {self.block.height}"} - '
-            f'{self.from_user if self.from_user else "Coinbase"} -> {self.to_user}, {self.amount}, {self.description}'
+            f'{self.from_user if self.from_user else "Coinbase"} -> {self.to_user}, {self.amount}, fee: {self.fee}, {self.description}'
         )
 
     class Meta:
@@ -208,6 +214,10 @@ def get_total_users_blocks_count(genesis_user_id: int) -> int:
     if genesis_user is None:
         return -1
     return Block.select().where(Block.miner != genesis_user).count()
+
+
+def get_last_block() -> Block:
+    return Block.select(Block.height, Block.block_hash).order_by(Block.height.desc()).first()
 
 
 def update_user_stats(user_or_id: int | User, stat_type: StatsType, increment: int = 1):

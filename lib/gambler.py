@@ -79,7 +79,8 @@ class Gambler:
         else:
             return GainType.loss
 
-    async def validate_bet(self, user: UserProfile, user_bet: str | int) -> int:
+    @staticmethod
+    async def validate_bet(user_bet: str | int) -> int:
         if isinstance(user_bet, int):
             bet = user_bet
         elif user_bet.isdigit():
@@ -90,21 +91,18 @@ class Gambler:
         if bet < 0:
             raise RuntimeError("Bet cannot be negative!")
 
-        balance = self.ledger.get_user_balance(user.id)
-        if balance < bet:
-            raise RuntimeError(f"You don't have enough money: {balance} < {bet}!")
-
         return int(bet)
 
     def get_balance_str(self, user: UserProfile) -> str:
         return f'{user}: {self.ledger.get_user_balance(user.id)} coins.'
 
     async def gamble(self, message: types.Message, user: UserProfile, user_bet: str = None):
-        bet = await self.validate_bet(user, user.gamble_bet if user_bet is None else user_bet)
+        bet = await self.validate_bet(user.gamble_bet if user_bet is None else user_bet)
 
         if bet < 20:
             return await message.reply("Bet should be greater than 20!")
 
+        self.ledger.record_deposit(user.id, bet, "Gamble bet")
         user.gamble_bet = bet
 
         dice_msg = await self.get_dice_msg(message)
@@ -112,7 +110,6 @@ class Gambler:
         gain = int(gamble_multipliers[gain_type] * bet)
 
         database.update_user_stats(user.id, StatsType.gamble)
-        self.ledger.record_deposit(user.id, bet, "Gamble bet")
         if gain:
             self.ledger.record_gain(user.id, gain, f"Gamble gain X{gamble_multipliers[gain_type]}")
 
@@ -120,7 +117,7 @@ class Gambler:
         return await self.show_win_message(dice_msg, gain_type, self.get_balance_str(user))
 
     async def galton(self, message: types.Message, user: UserProfile, user_bet: str = None, user_balls: str = None):
-        bet = await self.validate_bet(user, user.galton_bet if user_bet is None else user_bet)
+        bet = await self.validate_bet(user.galton_bet if user_bet is None else user_bet)
         balls = user.galton_balls if user_balls is None else int(user_balls)
 
         if user.galton_running_count >= storage.galton_max_concurrent_per_user:
@@ -135,13 +132,13 @@ class Gambler:
         if bet_per_ball < 100:
             return await message.reply("Bet per ball should be >= 100!")
 
+        self.ledger.record_deposit(user.id, bet, "Galton bet")
         galton_msg = await message.reply(f"Waiting for simulation results /galton {bet} {balls}")
 
         user.galton_bet = bet
         user.galton_balls = balls
         user.galton_running_count += 1
         database.update_user_stats(user.id, StatsType.galton)
-        self.ledger.record_deposit(user.id, bet, "Galton bet")
 
         physics_simulation = PhysicsSimulation()
         background_path = database.get_galton_background_path(user.id)

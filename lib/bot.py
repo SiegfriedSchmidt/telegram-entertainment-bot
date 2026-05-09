@@ -78,6 +78,7 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger, asyn
     # ledger
     me = await bot.get_me()
     try:
+        ledger.fee_percentage = storage.fee_percentage
         ledger.load_and_verify_chain(me.id, me.username)
     except LedgerError as e:
         await notification(str(e), bot)
