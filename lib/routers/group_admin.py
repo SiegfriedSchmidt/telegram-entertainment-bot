@@ -9,4 +9,4 @@ router.message.filter(
     F.from_user.id.in_(config.admin_ids)
 )
 
-router.include_routers(admin_commands.create_router())
+router.include_router(admin_commands.create_router())
