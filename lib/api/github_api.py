@@ -30,10 +30,13 @@ async def get_commits() -> List[Dict[str, Any]]:
                         return commits
                 else:
                     main_logger.error(f"GitHub API error: {response.status}")
-                return []
+                    raise RuntimeError(f"GitHub API error: {response.status}")
         except aiohttp.ClientError as e:
             main_logger.error(f"Network error fetching commit: {e}")
-            return []
+            raise
+        except Exception:
+            raise
+        return []
 
 
 def get_commit_obj(commit: dict) -> Commit:

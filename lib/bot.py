@@ -98,10 +98,13 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger, asyn
     start_message = f"Bot {bot_version} started."
 
     # show latest update
-    update_lines, latest_sha = await get_commits_message()
-    if update_lines is not None:
-        start_message += "\n\n" + "\n".join(update_lines)
-    storage.latest_github_commit_sha = latest_sha
+    try:
+        update_lines, latest_sha = await get_commits_message()
+        if update_lines is not None:
+            start_message += "\n\n" + "\n".join(update_lines)
+        storage.latest_github_commit_sha = latest_sha
+    except RuntimeError as e:
+        start_message += str(e)
 
     await notification(start_message, bot, parse_mode="HTML")
 
