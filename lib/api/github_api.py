@@ -6,7 +6,7 @@ from lib.logger import main_logger
 from lib.storage import storage
 
 REPO_OWNER = "SiegfriedSchmidt"
-REPO_NAME = "telegram-ssh-bot"
+REPO_NAME = "telegram-entertainment-bot"
 url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/commits"
 
 

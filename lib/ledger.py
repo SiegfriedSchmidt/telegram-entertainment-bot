@@ -66,6 +66,10 @@ def compute_merkle_root(tx_hashes: list[str]) -> str:
     return level[0].hex()
 
 
+def check_hash_difficulty(block_hash: str, diff: str) -> bool:
+    return block_hash.startswith(diff)
+
+
 def reward_function(base_reward: int, block_number: int) -> int:
     return base_reward + block_number * 0
 
@@ -73,15 +77,12 @@ def reward_function(base_reward: int, block_number: int) -> int:
 class Ledger:
     def __init__(self, base_block_reward: int, difficulty=2):
         self.base_block_reward = base_block_reward
-        self.difficulty = "0" * difficulty
+        self.diff = "0" * difficulty  # block mining difficulty
         self.genesis_id = 0
         self.fee_percentage = 0
         self.__balances: dict[int, int] = dict()
         self.__max_balances: dict[int, int] = dict()
         self.__total_gain: dict[int, int] = dict()
-
-    def check_hash_difficulty(self, block_hash: str) -> bool:
-        return block_hash.startswith(self.difficulty)
 
     def init_genesis(self, genesis_user: User):
         if database.get_blocks_count() == 0:
@@ -134,8 +135,8 @@ class Ledger:
                     f"Genesis user id mismatch! '{blocks[0].miner.id}' != '{self.genesis_id}'"
                 )
 
-            prev_block = Block(height=-1, block_hash=EMPTY_HASH)
-            for block in blocks:
+            prev_hash = EMPTY_HASH
+            for height, block in enumerate(blocks):
                 txs = database.get_block_transactions(block, ascending=True)
 
                 # Check coinbase
@@ -179,13 +180,13 @@ class Ledger:
                     )
 
                 try:
-                    expected_block = self.__create_block(
-                        miner, merkle_root, prev_block, block.base_reward, block.total_fees, block.nonce,
-                        block.timestamp
+                    expected_block = self.create_block(
+                        miner, merkle_root, height, prev_hash, self.diff, block.base_reward, block.total_fees,
+                        block.nonce, block.timestamp
                     )
                 except BlockNotMined as e:
                     raise BlockchainBroken(
-                        block.height, f"Computed hash: {e.block_hash}, difficulty: {self.difficulty}"
+                        block.height, f"Computed hash: {e.block_hash}, difficulty: {self.diff}"
                     )
 
                 if expected_block.block_hash != block.block_hash:
@@ -194,7 +195,7 @@ class Ledger:
                     )
 
                 self.__update_balance_transactions(txs)
-                prev_block = block
+                prev_hash = block.block_hash
 
         self.__update_balance_transactions(database.get_pending_transactions(ascending=True))
         self.mine_block()
@@ -221,19 +222,22 @@ class Ledger:
 
     def __mine_block(self, miner: User, base_reward: int = None, tx_description="Block reward",
                      pending_txs: list[Transaction] = None, nonce: int = None) -> Block:
-        last_block = database.get_last_block()
+        last_block = self.get_last_block()
         if base_reward is None:
-            base_reward = reward_function(self.base_block_reward, last_block.height)
+            base_reward = reward_function(self.base_block_reward, last_block.height + 1)
         if pending_txs is None:
             pending_txs = []
 
         with db.atomic():
             total_fees = self.calculate_total_fees(pending_txs)
-            coinbase_tx = self.__create_transaction(None, miner.id, base_reward + total_fees, tx_description)
+            coinbase_tx = self.create_transaction(None, miner.id, base_reward + total_fees, tx_description)
             pending_txs += [coinbase_tx]
             merkle_root = compute_merkle_root([tx.tx_hash for tx in pending_txs])
 
-            block = self.__create_block(miner, merkle_root, last_block, base_reward, total_fees, nonce)
+            block = self.create_block(
+                miner, merkle_root, last_block.height + 1, last_block.block_hash, self.diff,
+                base_reward, total_fees, nonce
+            )
             self.__record_transaction(coinbase_tx)
             block.save(force_insert=True)
 
@@ -246,17 +250,16 @@ class Ledger:
             )
             return block
 
-    def __create_block(self, miner: User, merkle_root: str, last_block: Block,
-                       base_reward: int, total_fees: int, nonce: int = None, timestamp: str = None) -> Block:
+    @staticmethod
+    def get_last_block() -> Block:
+        last_block = database.get_last_block()
+        return last_block if last_block else Block(height=-1, block_hash=EMPTY_HASH)
+
+    @staticmethod
+    def create_block(miner: User, merkle_root: str, height: int, prev_hash: str, diff: str,
+                     base_reward: int, total_fees: int, nonce: int = None, timestamp: str = None) -> Block:
         if timestamp is None:
             timestamp = datetime.now().isoformat()
-
-        if last_block is None:
-            height = 0
-            prev_hash = EMPTY_HASH
-        else:
-            height = last_block.height + 1
-            prev_hash = last_block.block_hash
 
         block_data = dict()
         block_data.update({
@@ -268,28 +271,29 @@ class Ledger:
             "merkle_root": merkle_root,
             "prev_hash": prev_hash
         })
-        block_data["nonce"] = self.__mine_nonce(block_data) if nonce is None else nonce
+        block_data["nonce"] = Ledger.mine_nonce(block_data, diff) if nonce is None else nonce
         block_data["block_hash"] = compute_hash(block_data)
 
-        if not self.check_hash_difficulty(block_data["block_hash"]):
+        if not check_hash_difficulty(block_data["block_hash"], diff):
             raise BlockNotMined(height, block_data["block_hash"])
 
         block_data["miner"] = miner
         return Block(**block_data)
 
-    def __mine_nonce(self, block_data: dict) -> int:
+    @staticmethod
+    def mine_nonce(block_data: dict, diff: str) -> int:
         nonce = 0
         while True:
             block_data["nonce"] = nonce
             block_hash = compute_hash(block_data)
-            if self.check_hash_difficulty(block_hash):
+            if check_hash_difficulty(block_hash, diff):
                 break
             nonce += 1
         return nonce
 
     @staticmethod
-    def __create_transaction(from_user_id: int | None, to_user_id: int, amount: MONEY_TYPE,
-                             description: str = None, timestamp: str = None, fee: MONEY_TYPE = 0) -> Transaction:
+    def create_transaction(from_user_id: int | None, to_user_id: int, amount: MONEY_TYPE,
+                           description: str = None, timestamp: str = None, fee: MONEY_TYPE = 0) -> Transaction:
         amount = int(amount)
         fee = int(fee)
 
@@ -317,7 +321,7 @@ class Ledger:
 
     def record_transaction(self, from_user_id: int, to_user_id: int, amount: MONEY_TYPE,
                            description: str = None, timestamp: str = None) -> Transaction:
-        tx = self.__create_transaction(
+        tx = self.create_transaction(
             from_user_id, to_user_id, amount, description, timestamp, int(int(amount) * self.fee_percentage)
         )
         self.__record_transaction(tx)
@@ -341,7 +345,7 @@ class Ledger:
 
     @staticmethod
     def fill_in_users(l: list[tuple[int, int]]) -> list[tuple[User, int]]:
-        return [(database.get_user(user_id), amount) for user_id, amount in l]
+        return [(database.get_user_or_exception(user_id), amount) for user_id, amount in l]
 
     def get_all_balances(self) -> list[tuple[User, int]]:
         return self.fill_in_users(sorted(list(self.__balances.items()), key=lambda item: item[1], reverse=True))
