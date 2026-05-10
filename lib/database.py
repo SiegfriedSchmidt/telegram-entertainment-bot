@@ -175,14 +175,12 @@ def set_galton_background_path(user_id: int, path: str) -> None:
 
 
 def get_total_daily_amount() -> int:
-    total_all_daily = (
-            Transaction
-            .select(fn.SUM(Transaction.amount))
-            .where(Transaction.description.startswith('Daily'))
-            .scalar() or 0
+    return int(
+        Transaction
+        .select(fn.SUM(Transaction.amount))
+        .where(Transaction.description.startswith('Daily'))
+        .scalar() or 0
     )
-
-    return int(total_all_daily)
 
 
 def get_total_stats():
@@ -303,6 +301,15 @@ def get_pending_transactions(limit: Optional[int] = None, ascending=False) -> li
         .where(Transaction.block.is_null())
         .order_by(Transaction.number.asc() if ascending else Transaction.number.desc())
         .limit(limit)
+    )
+
+
+def get_total_pending_fees() -> int:
+    return int(
+        Transaction
+        .select(fn.SUM(Transaction.fee))
+        .where(Transaction.block.is_null())
+        .scalar() or 0
     )
 
 

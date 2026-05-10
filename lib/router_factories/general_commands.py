@@ -308,6 +308,10 @@ def create_router():
         blocks = database.get_blocks(limit=limit, offset=offset)
         return await large_respond(message, [f"<b>Blocks list ({blocks_count}):</b>"] + blocks, parse_mode='html')
 
+    @router.message(Command("total_pending_fees"))
+    async def total_pending_fees_cmd(message: types.Message):
+        return await message.reply(f"Total pending fees: {database.get_total_pending_fees()}")
+
     @router.message(Command("user_blocks"))
     async def user_blocks_cmd(message: types.Message, command: CommandObject):
         args = get_args(command, 0, 3)

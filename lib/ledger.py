@@ -117,7 +117,7 @@ class Ledger:
     def calculate_total_fees(txs: list[Transaction]):
         return sum(tx.fee for tx in txs)
 
-    def load_and_verify_chain(self, genesis_id: int, genesis_username: str):
+    def load_and_verify_chain(self, genesis_id: int, genesis_username: str) -> str:
         self.genesis_id = genesis_id
 
         t = time.monotonic()
@@ -127,7 +127,7 @@ class Ledger:
             blocks = database.get_blocks(ascending=True)
             if not blocks:
                 self.init_genesis(database.create_user(genesis_id, genesis_username))
-                return
+                return "Genesis block created!"
 
             if blocks[0].miner.id != self.genesis_id:
                 raise BlockchainBroken(
@@ -198,12 +198,11 @@ class Ledger:
                 prev_hash = block.block_hash
 
         self.__update_balance_transactions(database.get_pending_transactions(ascending=True))
-        self.mine_block()
 
-        ledger_logger.info(
-            f"Blockchain verified in {time.monotonic() - t:.3f} seconds! "
-            f"{database.get_blocks_count()} blocks loaded. "
-            f"{database.get_transactions_count()} transactions loaded. "
+        return (
+            f"Blockchain verified in {time.monotonic() - t:.3f} seconds!\n"
+            f"Blocks loaded: {database.get_blocks_count()}\n"
+            f"Transactions loaded: {database.get_transactions_count()}\n"
             f"Users with balance: {len(self.__balances)}"
         )
 

@@ -79,7 +79,7 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger, asyn
     me = await bot.get_me()
     try:
         ledger.fee_percentage = storage.fee_percentage
-        ledger.load_and_verify_chain(me.id, me.username)
+        ledger_info_msg = ledger.load_and_verify_chain(me.id, me.username)
     except LedgerError as e:
         await notification(str(e), bot)
         await bot.session.close()
@@ -106,6 +106,7 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger, asyn
     except RuntimeError as e:
         start_message += str(e)
 
+    start_message += f'\n\n{ledger_info_msg}'
     await notification(start_message, bot, parse_mode="HTML")
 
 

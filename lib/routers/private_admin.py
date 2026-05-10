@@ -105,10 +105,20 @@ async def send(message: types.Message, state: FSMContext):
 @router.message(Command("tx"))
 async def tx_cmd(message: types.Message, command: CommandObject, ledger: Ledger):
     args = get_args(command, 4)
-    if not args[2].isdecimal():
-        return await message.answer('Invalid type of arguments.')
+    from_user = database.get_user(args[0])
+    to_user = database.get_user(args[1])
 
-    tx = ledger.record_transaction(*args[:3], " ".join(args[3:]))
+    if from_user is None:
+        return await message.answer(f"User {from_user} doesn't exist!")
+    if to_user is None:
+        return await message.answer(f"User {to_user} doesn't exist!")
+    if not args[2].isdigit():
+        return await message.answer(f"Amount {args[0]} is not a number.")
+
+    amount = int(args[2])
+    description = " ".join(args[3:])
+
+    tx = ledger.record_transaction(from_user.id, to_user.id, amount, description)
     return await message.answer(
         f'Transaction: {tx.from_user} -> {tx.to_user}: {tx.amount}, {tx.description} - recorded!'
     )
@@ -138,9 +148,9 @@ async def delete_pending_cmd(message: types.Message, ledger: Ledger):
 async def reset_daily_cmd(message: types.Message, command: CommandObject):
     args = get_args(command, 1, 1)
 
-    username = args[0]
-    if not database.is_user_exists(username):
-        return await message.answer(f"User {username} doesn't exist!")
+    user = database.get_user(args[0])
+    if user is None:
+        return await message.answer(f"User {args[0]} doesn't exist!")
 
-    database.reset_daily_prize_time_for_user(username)
-    return await message.answer(f"Daily prize time for user {username} has been reset!")
+    database.reset_daily_prize_time_for_user(user.id)
+    return await message.answer(f"Daily prize time for user {user.username} has been reset!")

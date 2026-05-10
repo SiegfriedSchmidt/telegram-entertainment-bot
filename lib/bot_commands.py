@@ -19,6 +19,7 @@ bot_general_commands = [
     BotCommand(command='daily_prize', description='obtain daily prize'),
     BotCommand(command='ledger', description='show blockchain transactions'),
     BotCommand(command='blocks', description='show blockchain blocks'),
+    BotCommand(command='total_pending_fees', description='show total fees of pending transactions'),
     BotCommand(command='user_blocks', description='{user: optional} show blockchain user blocks'),
     BotCommand(command='leaderboard', description='show leaderboard'),
     BotCommand(command='export_transactions', description='export all transactions in csv file'),
