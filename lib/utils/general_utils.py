@@ -1,9 +1,8 @@
-import asyncio
 import os
 from datetime import datetime, time, timedelta
 from io import BytesIO
 from pathlib import Path
-from typing import List, Tuple, ParamSpec, TypeVar, Callable
+from typing import List, Tuple
 
 
 def get_file_from_str(string: str, filename: str) -> BytesIO:
@@ -79,12 +78,3 @@ def used_today(last_used: datetime, day_start_time: str) -> bool:
     day_end = day_start + timedelta(days=1)
 
     return day_start <= last_used < day_end
-
-
-P = ParamSpec("P")
-R = TypeVar("R")
-
-
-async def run_in_thread(func: Callable[P, R], *args: P.args) -> R:
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, func, *args)

@@ -28,8 +28,9 @@ from lib.states.confirmation_state import ConfirmationState
 from lib.storage import storage
 from lib.temporal_storage import UserProfile
 from lib.utils.message_factories import get_leaderboard
-from lib.utils.general_utils import from_iso, run_in_thread
+from lib.utils.general_utils import from_iso
 from lib.utils.message_utils import get_args, is_bot_admin, get_name_or_id_with_reply, large_respond
+from lib.workers import workers
 
 
 def create_router():
@@ -194,7 +195,7 @@ def create_router():
     @router.message(Command("roulette"))
     async def roulette_cmd(message: types.Message, command: CommandObject, user: UserProfile):
         roulette_msg = await message.reply("Start roulette...")
-        filename, duration, win_number = await run_in_thread(render_roulette)
+        filename, duration, win_number = await workers.enqueue(render_roulette)
 
         animation = FSInputFile(filename, filename=str(filename))
         media = InputMediaAnimation(media=animation, caption=None)

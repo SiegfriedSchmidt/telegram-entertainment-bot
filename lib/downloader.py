@@ -90,7 +90,8 @@ class Downloader:
     def cookies(self, path: str | Path | None) -> None:
         if path is None:
             self.ydl_opts.pop("cookiefile", "")
-        self.ydl_opts["cookiefile"] = str(path)
+        else:
+            self.ydl_opts["cookiefile"] = str(path)
 
     def download(self, url: str, callback: Callable[[str], None] = None) -> \
             Tuple[Optional[Tuple[Path, str, str, bool]], str]:

@@ -327,18 +327,21 @@ class Ledger:
             f"Transaction recorded {tx.from_user} -> {tx.to_user}: {tx.amount}, fee: {tx.fee}, {tx.description}"
         )
 
-    def record_transaction(self, from_user_id: int, to_user_id: int, amount: MONEY_TYPE,
-                           description: str = None, timestamp: str = None, apply_fee=True,
-                           deduct_fee=False) -> Transaction:
+    def calc_fee(self, amount: MONEY_TYPE, deduct_fee=True) -> tuple[int, int]:
+        amount = int(amount)
+        if deduct_fee:
+            full_amount = amount
+            amount = int(int(full_amount) / (1 + self.fee_percentage))
+            fee = full_amount - amount
+        else:
+            fee = int(math.ceil(int(amount) * self.fee_percentage))
+        return amount, fee
 
-        fee = 0
-        if apply_fee:
-            if deduct_fee:
-                full_amount = amount
-                amount = int(int(full_amount) / (1 + self.fee_percentage))
-                fee = full_amount - amount
-            else:
-                fee = int(math.ceil(int(amount) * self.fee_percentage))
+    def record_transaction(self, from_user_id: int, to_user_id: int, amount: MONEY_TYPE,
+                           description: str = None, timestamp: str = None, fee: MONEY_TYPE = None,
+                           deduct_fee=False) -> Transaction:
+        if fee is None:
+            amount, fee = self.calc_fee(amount, deduct_fee)
 
         tx = self.create_transaction(from_user_id, to_user_id, amount, description, timestamp, fee)
         self.__record_transaction(tx)
@@ -349,7 +352,7 @@ class Ledger:
         self.record_transaction(from_user_id, self.genesis_id, amount, description, deduct_fee=True)
 
     def record_gain(self, to_user_id: int, amount: MONEY_TYPE, description: str = None):
-        self.record_transaction(self.genesis_id, to_user_id, amount, description)
+        self.record_transaction(self.genesis_id, to_user_id, amount, description, deduct_fee=True)
 
     def get_user_balance(self, user_id: int) -> int:
         return self.__balances.get(user_id, 0)

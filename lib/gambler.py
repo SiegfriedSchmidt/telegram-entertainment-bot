@@ -8,7 +8,7 @@ from lib.models import GainType, StatsType
 from lib.physics_simulation import PhysicsSimulation
 from lib.storage import storage
 from lib.temporal_storage import UserProfile
-from lib.utils.general_utils import run_in_thread
+from lib.workers import workers
 
 gamble_multipliers = {
     GainType.loss: 0,
@@ -80,7 +80,7 @@ class Gambler:
             return GainType.loss
 
     @staticmethod
-    async def validate_bet(user_bet: str | int) -> int:
+    def validate_bet(user_bet: str | int) -> int:
         if isinstance(user_bet, int):
             bet = user_bet
         elif user_bet.isdigit():
@@ -91,13 +91,13 @@ class Gambler:
         if bet < 0:
             raise RuntimeError("Bet cannot be negative!")
 
-        return int(bet)
+        return bet
 
     def get_balance_str(self, user: UserProfile) -> str:
         return f'{user}: {self.ledger.get_user_balance(user.id)} coins.'
 
     async def gamble(self, message: types.Message, user: UserProfile, user_bet: str = None):
-        bet = await self.validate_bet(user.gamble_bet if user_bet is None else user_bet)
+        bet = self.validate_bet(user.gamble_bet if user_bet is None else user_bet)
 
         if bet < 20:
             return await message.reply("Bet should be greater than 20!")
@@ -117,7 +117,7 @@ class Gambler:
         return await self.show_win_message(dice_msg, gain_type, self.get_balance_str(user))
 
     async def galton(self, message: types.Message, user: UserProfile, user_bet: str = None, user_balls: str = None):
-        bet = await self.validate_bet(user.galton_bet if user_bet is None else user_bet)
+        bet = self.validate_bet(user.galton_bet if user_bet is None else user_bet)
         balls = user.galton_balls if user_balls is None else int(user_balls)
 
         if user.galton_running_count >= storage.galton_max_concurrent_per_user:
@@ -128,8 +128,7 @@ class Gambler:
         if balls < 1 or balls > 750:
             return await message.reply("Amount of balls should be between 1 and 750!")
 
-        bet_per_ball = float(bet / balls)
-        if bet_per_ball < 100:
+        if bet / balls < 100:
             return await message.reply("Bet per ball should be >= 100!")
 
         self.ledger.record_deposit(user.id, bet, "Galton bet")
@@ -142,7 +141,7 @@ class Gambler:
 
         physics_simulation = PhysicsSimulation()
         background_path = database.get_galton_background_path(user.id)
-        multiplier, filename, duration = await run_in_thread(physics_simulation.run, balls, background_path)
+        multiplier, filename, duration = await workers.enqueue(physics_simulation.run, balls, background_path)
 
         animation = FSInputFile(filename, filename=str(filename))
         media = InputMediaAnimation(media=animation, caption=None)
@@ -150,8 +149,8 @@ class Gambler:
         await asyncio.sleep(duration + 2)
 
         user.galton_running_count -= 1
-        gain = int(multiplier * bet_per_ball)
         multiplier = round(multiplier / balls, 2)
+        gain = int(multiplier * bet)
         if gain:
             self.ledger.record_gain(user.id, gain, f"Galton gain X{multiplier}")
 

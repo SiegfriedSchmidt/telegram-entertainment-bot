@@ -388,7 +388,7 @@ class PhysicsSimulation:
         # self.compute_probabilities(categories_count)
 
         filename = tmp_folder_path / f"galton_{self.seed}.mp4"
-        multiplier = np.round(np.sum(np.array(categories_count) * self.manual_coefficients), 1)
+        multiplier = np.sum(np.array(categories_count) * self.manual_coefficients)
         frames = positions[::self.subsampling]
         ball_colors = self.prepare_ball_colors(ball_category, len(categories_count))
 
