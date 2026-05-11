@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import json
+import math
 import time
 from threading import Lock
 from datetime import datetime
@@ -322,19 +323,30 @@ class Ledger:
 
     def __record_transaction(self, tx: Transaction):
         self.apply_tx(tx)
-        ledger_logger.info(f"Transaction recorded {tx.from_user} -> {tx.to_user}: {tx.amount}, {tx.description}")
+        ledger_logger.info(
+            f"Transaction recorded {tx.from_user} -> {tx.to_user}: {tx.amount}, fee: {tx.fee}, {tx.description}"
+        )
 
     def record_transaction(self, from_user_id: int, to_user_id: int, amount: MONEY_TYPE,
-                           description: str = None, timestamp: str = None) -> Transaction:
-        tx = self.create_transaction(
-            from_user_id, to_user_id, amount, description, timestamp, int(int(amount) * self.fee_percentage)
-        )
+                           description: str = None, timestamp: str = None, apply_fee=True,
+                           deduct_fee=False) -> Transaction:
+
+        fee = 0
+        if apply_fee:
+            if deduct_fee:
+                full_amount = amount
+                amount = int(int(full_amount) / (1 + self.fee_percentage))
+                fee = full_amount - amount
+            else:
+                fee = int(math.ceil(int(amount) * self.fee_percentage))
+
+        tx = self.create_transaction(from_user_id, to_user_id, amount, description, timestamp, fee)
         self.__record_transaction(tx)
         tx.save()
         return tx
 
     def record_deposit(self, from_user_id: int, amount: MONEY_TYPE, description: str = None):
-        self.record_transaction(from_user_id, self.genesis_id, amount, description)
+        self.record_transaction(from_user_id, self.genesis_id, amount, description, deduct_fee=True)
 
     def record_gain(self, to_user_id: int, amount: MONEY_TYPE, description: str = None):
         self.record_transaction(self.genesis_id, to_user_id, amount, description)
