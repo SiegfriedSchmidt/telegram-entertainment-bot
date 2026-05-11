@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from pydantic import SecretStr
-from lib.asyncio_workers import AsyncioWorkers
 
 
 class Dialog:
@@ -30,21 +29,17 @@ class Dialog:
 
 
 class LLM(ABC):
-    def __init__(self, api_key: SecretStr, workers: AsyncioWorkers, model: str):
+    def __init__(self, api_key: SecretStr, model: str):
         self.api_key = api_key.get_secret_value()
-        self.workers = workers
         self.model = model
 
     @abstractmethod
-    async def _chat_complete(self, dialog: Dialog) -> str:
+    async def chat_complete(self, dialog: Dialog) -> str:
         ...
 
     @abstractmethod
     async def check_limits(self) -> str:
         ...
-
-    async def chat_complete(self, dialog: Dialog):
-        return await self.workers.enqueue_task(self._chat_complete, dialog)
 
     def __str__(self):
         return f'model: {self.model}\napi_key: {self.api_key[0:15]}.....{self.api_key[-5:]}\n'

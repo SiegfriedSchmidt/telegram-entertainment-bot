@@ -1,18 +1,26 @@
+import asyncio
+
 from aiogram import types
 from aiogram.types import LinkPreviewOptions, FSInputFile, InputMediaVideo
 from lib.downloader import downloader
 from lib.keyboards.link_keyboard import get_link_keyboard
 from lib.storage import storage
 from lib.utils.general_utils import get_size_str
+from lib.workers import workers
 
 
 async def download_video(message: types.Message, url: str):
     answer = await message.reply("Downloading...")
 
-    async def callback(text: str):
+    main_loop = asyncio.get_running_loop()
+
+    async def edit_text_wrapper(text: str):
         await answer.edit_text(text)
 
-    result, error = await downloader.download(url, callback)
+    def callback(text: str):
+        asyncio.run_coroutine_threadsafe(edit_text_wrapper(text), main_loop)
+
+    result, error = await workers.enqueue(downloader.download, url, callback)
     if error:
         return await answer.edit_text(f"Download failed: {error}")
 

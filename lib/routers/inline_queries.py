@@ -3,6 +3,8 @@ from lib.config_reader import config
 from aiogram import Router, F
 from aiogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessageContent, LinkPreviewOptions
 
+from lib.workers import workers
+
 router = Router()
 router.inline_query.filter(
     F.from_user.id.in_(config.admin_ids)
@@ -26,7 +28,7 @@ async def inline_handler(inline_query: InlineQuery):
         return await show_text(inline_query, "Invalid", "No query provided")
 
     url = query.split()[0]
-    result, error = await downloader.download(url)
+    result, error = await workers.enqueue(downloader.download, url)
     if error:
         return await show_text(inline_query, "Error", "Error occurred while downloading")
 

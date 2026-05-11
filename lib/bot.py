@@ -8,7 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from lib.api.joke_api import get_joke
-from lib.asyncio_workers import AsyncioWorkers
+from lib.workers import workers
 # from lib.api.meme_api import get_meme
 from lib.bot_commands import set_bot_commands
 from lib.config_reader import config
@@ -74,7 +74,7 @@ async def on_day_start(bot: Bot, ledger: Ledger) -> None:
     main_logger.info("Day start function executed.")
 
 
-async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger, asyncio_workers: AsyncioWorkers) -> None:
+async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger) -> None:
     # ledger
     me = await bot.get_me()
     try:
@@ -92,7 +92,7 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger, asyn
     scheduler.start()
 
     # asyncio workers
-    asyncio_workers.start(1)
+    workers.start()
 
     # start message
     start_message = f"Bot {bot_version} started."
@@ -152,15 +152,13 @@ async def main():
     scheduler = AsyncIOScheduler()
     ledger = Ledger(storage.mine_block_reward)
     gambler = Gambler(ledger)
-    asyncio_workers = AsyncioWorkers()
-    openrouter_llm = OpenrouterLLM(config.gemini_api_key, asyncio_workers)
+    openrouter_llm = OpenrouterLLM(config.gemini_api_key)
 
     await dp.start_polling(
         bot, allowed_updates=dp.resolve_used_update_types(),
         scheduler=scheduler,
         ledger=ledger,
         gambler=gambler,
-        asyncio_workers=asyncio_workers,
         openrouter_llm=openrouter_llm
     )
 

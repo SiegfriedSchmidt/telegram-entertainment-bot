@@ -1,7 +1,7 @@
 import os
 import yt_dlp
 from pathlib import Path
-from typing import Optional, Union, List, Tuple, Callable, Coroutine
+from typing import Optional, Union, List, Tuple, Callable
 from lib.config_reader import config
 from lib.init import videos_folder_path, cookies_file_path
 from lib.logger import main_logger
@@ -92,7 +92,7 @@ class Downloader:
             self.ydl_opts.pop("cookiefile", "")
         self.ydl_opts["cookiefile"] = str(path)
 
-    async def download(self, url: str, callback: Callable[[str], Coroutine[None, None, None]] | None = None) -> \
+    def download(self, url: str, callback: Callable[[str], None] = None) -> \
             Tuple[Optional[Tuple[Path, str, str, bool]], str]:
         """
         Download a single video by URL.
@@ -114,7 +114,7 @@ class Downloader:
 
                 if storage.optimize and opt_needed:
                     if callback:
-                        await callback("Optimizing...")
+                        callback("Optimizing...")
                 else:
                     opt_info = None
 

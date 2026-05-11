@@ -1,19 +1,18 @@
 import aiohttp
 from openai import AsyncOpenAI
 from pydantic import SecretStr
-from lib.asyncio_workers import AsyncioWorkers
 from lib.llms.general_llm import LLM, Dialog
 
 
 class OpenrouterLLM(LLM):
-    def __init__(self, api_key: SecretStr, workers: AsyncioWorkers, model="x-ai/grok-4.20-multi-agent"):
-        super().__init__(api_key, workers, model)
+    def __init__(self, api_key: SecretStr, model="x-ai/grok-4.20-multi-agent"):
+        super().__init__(api_key, model)
         self.client = AsyncOpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=self.api_key,
         )
 
-    async def _chat_complete(self, dialog: Dialog) -> str:
+    async def chat_complete(self, dialog: Dialog) -> str:
         completion = await self.client.chat.completions.create(
             model=self.model,
             messages=dialog.messages
