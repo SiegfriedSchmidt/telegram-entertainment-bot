@@ -144,6 +144,31 @@ async def delete_pending_cmd(message: types.Message, ledger: Ledger):
     return await message.answer(f"Total deleted pending transactions: {count}")
 
 
+@router.message(Command("delete_tx"))
+async def delete_tx_cmd(message: types.Message, command: CommandObject, state: FSMContext):
+    args = get_args(command, 1, 1)
+    number = int(args[0])
+    tx = database.get_transactions(offset=number, limit=1)[0]
+    if tx.block is not None:
+        return await message.answer(f"Cannot delete not pending tx: {tx}!")
+
+    await state.set_state(ConfirmationState.delete_tx_confirmation)
+    await state.update_data(tx=tx)
+    return await message.answer(f"Do you want to delete this tx? (y/n)\n: {tx}")
+
+
+@router.message(ConfirmationState.delete_tx_confirmation)
+async def delete_tx(message: types.Message, state: FSMContext, ledger: Ledger):
+    tx: database.Transaction = (await state.get_data()).get("tx")
+    await state.clear()
+    if message.text.lower() == "y":
+        ledger.apply_tx(tx, revert=True)
+        tx.delete_instance()
+        return await message.answer(f"Deleted transaction: {tx}")
+    else:
+        return await message.answer(f"abort")
+
+
 @router.message(Command("reset_daily"))
 async def reset_daily_cmd(message: types.Message, command: CommandObject):
     args = get_args(command, 1, 1)

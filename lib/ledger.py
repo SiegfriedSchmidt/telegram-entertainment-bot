@@ -105,13 +105,19 @@ class Ledger:
             self.__total_gain[tx.to_user.id] += tx.amount
             self.__max_balances[tx.to_user.id] = max(self.__max_balances[tx.to_user.id], self.__balances[tx.to_user.id])
 
-    def __update_balance_transactions(self, txs: list[Transaction]) -> None:
-        for tx in txs:
-            self.__update_balance(tx)
+    def apply_tx(self, val: Transaction | list[Transaction], revert=False) -> None:
+        if isinstance(val, Transaction):
+            txs = [val]
+        else:
+            txs = val
 
-    def __revert_balance_transactions(self, txs: list[Transaction]) -> None:
-        for tx in txs:
-            self.__update_balance(tx)
+        if revert:
+            for tx in txs:
+                self.__balances[tx.from_user.id] += tx.fee
+                self.__update_balance(Transaction(from_user=tx.to_user, to_user=tx.from_user, amount=tx.amount))
+        else:
+            for tx in txs:
+                self.__update_balance(tx)
 
     @staticmethod
     def calculate_total_fees(txs: list[Transaction]):
@@ -194,10 +200,10 @@ class Ledger:
                         block.height, f"Block hash: {block.block_hash}, expected hash: {expected_block.block_hash}"
                     )
 
-                self.__update_balance_transactions(txs)
+                self.apply_tx(txs)
                 prev_hash = block.block_hash
 
-        self.__update_balance_transactions(database.get_pending_transactions(ascending=True))
+        self.apply_tx(database.get_pending_transactions(ascending=True))
 
         return (
             f"Blockchain verified in {time.monotonic() - t:.3f} seconds!\n"
@@ -315,7 +321,7 @@ class Ledger:
         return Transaction(**tx_data)
 
     def __record_transaction(self, tx: Transaction):
-        self.__update_balance(tx)
+        self.apply_tx(tx)
         ledger_logger.info(f"Transaction recorded {tx.from_user} -> {tx.to_user}: {tx.amount}, {tx.description}")
 
     def record_transaction(self, from_user_id: int, to_user_id: int, amount: MONEY_TYPE,
@@ -356,7 +362,7 @@ class Ledger:
         return self.fill_in_users(sorted(list(self.__total_gain.items()), key=lambda item: item[1], reverse=True))
 
     def delete_pending_transactions(self) -> int:
-        self.__revert_balance_transactions(database.get_pending_transactions(ascending=False))
+        self.apply_tx(database.get_pending_transactions(ascending=False), revert=True)
         return database.delete_pending_transactions()
 
     def import_transactions_csv(self, file: BinaryIO) -> int:
