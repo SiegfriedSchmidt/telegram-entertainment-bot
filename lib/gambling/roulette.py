@@ -1,8 +1,7 @@
 import cv2
 import numpy as np
 from lib.init import tmp_folder_path, roulette_assets_folder_path, blackjack_assets_folder_path
-from lib.opencv_custom_writer import OpencvCustomWriter
-from lib.utils.cv2_utils import cv2_paste_with_alpha
+from lib.utils.cv2_utils import cv2_paste_with_alpha, OpencvCustomWriter
 
 # European roulette order (clockwise, starting from 0)
 ROULETTE_NUMBERS = [

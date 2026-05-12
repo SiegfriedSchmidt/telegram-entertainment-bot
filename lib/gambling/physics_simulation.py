@@ -1,6 +1,6 @@
 from lib.init import tmp_folder_path, galton_backgrounds_folder_path
 from lib.logger import main_logger
-from lib.opencv_custom_writer import OpencvCustomWriter
+from lib.utils.cv2_utils import OpencvCustomWriter
 from lib.storage import storage
 from pathlib import Path
 from typing import Any

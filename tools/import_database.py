@@ -1,7 +1,9 @@
 import csv
 import lib.database as database
 from lib.database import User, Stats, Transaction
-from lib.ledger import Ledger, compute_merkle_root, EMPTY_HASH
+from lib.ledger.chain_manager import ChainManager
+from lib.ledger.tx_manager import TxManager
+from lib.ledger.helpers import EMPTY_HASH, compute_merkle_root
 
 
 def read_csv(path: str):
@@ -64,7 +66,7 @@ if __name__ == '__main__':
                     amount = 2000  # coinbase
                 miner_reward = amount
 
-            transaction = Ledger.create_transaction(
+            transaction = TxManager.create_transaction(
                 from_user_id=from_user.id if from_user else None,
                 to_user_id=to_user.id,
                 amount=amount,
@@ -80,7 +82,7 @@ if __name__ == '__main__':
         miner_user = database.get_user(process_username(block_data[2]))
         assert miner_user is not None
         assert miner_reward is not None
-        block = Ledger.create_block(
+        block = ChainManager.create_block(
             miner=miner_user,
             merkle_root=merkle_root,
             height=int(block_data[0]),

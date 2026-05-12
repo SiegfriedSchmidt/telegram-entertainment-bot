@@ -1,7 +1,7 @@
 from aiogram import Router
 from aiogram.types import ErrorEvent
 from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
-from lib.ledger import LedgerError
+from lib.ledger.ledger import LedgerError
 from lib.logger import main_logger
 
 router = Router()

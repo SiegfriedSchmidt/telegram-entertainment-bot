@@ -5,7 +5,7 @@ from dataclasses import fields
 from typing import get_type_hints
 from lib import database
 from lib.config_reader import config
-from lib.ledger import Ledger
+from lib.ledger.ledger import Ledger
 from lib.router_factories import admin_commands, general_commands, messages
 from lib.states.confirmation_state import ConfirmationState
 from lib.storage import storage, PersistentData
@@ -162,8 +162,7 @@ async def delete_tx(message: types.Message, state: FSMContext, ledger: Ledger):
     tx: database.Transaction = (await state.get_data()).get("tx")
     await state.clear()
     if message.text.lower() == "y":
-        ledger.apply_tx(tx, revert=True)
-        tx.delete_instance()
+        ledger.revert_tx(tx)
         return await message.answer(f"Deleted transaction: {tx}")
     else:
         return await message.answer(f"abort")

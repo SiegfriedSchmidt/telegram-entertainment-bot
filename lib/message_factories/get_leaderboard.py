@@ -1,6 +1,5 @@
 from itertools import chain
-
-from lib.ledger import Ledger
+from lib.ledger.ledger import Ledger
 
 
 def get_leaderboard(ledger: Ledger, is_all=False):

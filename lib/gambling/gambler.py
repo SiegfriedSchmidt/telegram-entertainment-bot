@@ -2,10 +2,10 @@ import asyncio
 import numpy as np
 from aiogram import types
 from aiogram.types import FSInputFile, InputMediaAnimation
-from lib.ledger import Ledger
+from lib.ledger.ledger import Ledger
 from lib import database
 from lib.models import GainType, StatsType
-from lib.physics_simulation import PhysicsSimulation
+from lib.gambling.physics_simulation import PhysicsSimulation
 from lib.storage import storage
 from lib.temporal_storage import UserProfile
 from lib.workers import workers

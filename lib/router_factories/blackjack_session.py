@@ -1,7 +1,7 @@
 from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import FSInputFile, InputMediaPhoto
-from lib.blackjack import Blackjack
+from lib.gambling.blackjack import Blackjack
 from lib.callbacks.blackjack_callback import BlackjackCallback
 from lib.keyboards.blackjack_keyboard import get_blackjack_keyboard
 from lib.middlewares.blackjack_game_access_middleware import BlackjackGameAccessMiddleware

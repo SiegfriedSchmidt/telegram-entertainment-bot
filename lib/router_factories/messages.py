@@ -2,8 +2,8 @@ from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ReactionTypeEmoji
 from lib.config_reader import config
-from lib.gambler import Gambler
-from lib.ledger import Ledger
+from lib.gambling.gambler import Gambler
+from lib.ledger.ledger import Ledger
 from lib.middlewares.user_middleware import UserMiddleware
 from lib.states.confirmation_state import ConfirmationState
 from lib.temporal_storage import temporal_storage

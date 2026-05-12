@@ -8,26 +8,27 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, FSInputFile, InputMediaAnimation
 from aiogram.utils.chat_action import ChatActionMiddleware
 from lib import database
-from lib.blackjack import Blackjack
+from lib.gambling.blackjack import Blackjack
 from lib.bot_commands import text_bot_general_commands, text_bot_admin_commands
 from lib.config_reader import config
 from lib.init import galton_backgrounds_folder_path
 from lib.keyboards.blackjack_keyboard import get_blackjack_keyboard
-from lib.ledger import Ledger, BlockNotMined
+from lib.ledger.ledger import Ledger
+from lib.ledger.chain_manager import BlockNotMined
 from lib.api.joke_api import get_joke
 from lib.api.meme_api import get_meme
 from lib.api.geoip_api import geoip
-from lib.gambler import Gambler
+from lib.gambling.gambler import Gambler
 from lib.llms.general_llm import Dialog
 from lib.llms.openrouter import OpenrouterLLM
 from lib.middlewares.user_middleware import UserMiddleware
-from lib.physics_simulation import PhysicsSimulation
-from lib.roulette import render_roulette
+from lib.gambling.physics_simulation import PhysicsSimulation
+from lib.gambling.roulette import render_roulette
 from lib.states.blackjack_state import BlackjackState
 from lib.states.confirmation_state import ConfirmationState
 from lib.storage import storage
 from lib.temporal_storage import UserProfile
-from lib.utils.message_factories import get_leaderboard
+from lib.message_factories.get_leaderboard import get_leaderboard
 from lib.utils.general_utils import from_iso
 from lib.utils.message_utils import get_args, is_bot_admin, get_name_or_id_with_reply, large_respond
 from lib.workers import workers
@@ -193,7 +194,7 @@ def create_router():
         return await state.set_data({"blackjack": blackjack, "game_message": game_message})
 
     @router.message(Command("roulette"))
-    async def roulette_cmd(message: types.Message, command: CommandObject, user: UserProfile):
+    async def roulette_cmd(message: types.Message):
         roulette_msg = await message.reply("Start roulette...")
         filename, duration, win_number = await workers.enqueue(render_roulette)
 
@@ -424,7 +425,7 @@ def create_router():
 
         blackjack_winrate = f"{stats.blackjack_win / stats.blackjack_all:.1%}" if stats.blackjack_all != 0 else "undefined"
         balance = ledger.get_user_balance(user.id)
-        total_gain = ledger.get_user_total_gain(user.id)
+        # total_gain = ledger.get_user_total_gain(user.id)
 
         lines = [
             f"<b>{user} stats:</b>",
@@ -450,7 +451,7 @@ def create_router():
         totals = database.get_total_stats()
         max_balance = ledger.get_all_max_balances()[1]
         total_balance = sum(balance for _, balance in ledger.get_all_balances()[1:])
-        total_gain = sum(gain for _, gain in ledger.get_all_total_gains())
+        # total_gain = sum(gain for _, gain in ledger.get_all_total_gains())
 
         blackjack_winrate = f"{totals["blackjack_win"] / totals["blackjack_all"]:.1%}" \
             if totals["blackjack_all"] != 0 else "undefined"

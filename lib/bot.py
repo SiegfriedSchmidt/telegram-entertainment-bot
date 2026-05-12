@@ -12,9 +12,9 @@ from lib.workers import workers
 # from lib.api.meme_api import get_meme
 from lib.bot_commands import set_bot_commands
 from lib.config_reader import config
-from lib.gambler import Gambler
+from lib.gambling.gambler import Gambler
 from lib.init import tmp_folder_path, bot_version
-from lib.ledger import Ledger, LedgerError
+from lib.ledger.ledger import Ledger, LedgerError
 from lib.llms.openrouter import OpenrouterLLM
 from lib.routers import public_commands, errors, group_admin, group_general, private_admin, inline_queries
 from lib.logger import main_logger
@@ -22,7 +22,7 @@ from lib.middlewares.access_middleware import AccessMiddleware
 from lib.middlewares.logger_middleware import LoggerMiddleware
 from lib.storage import storage
 from lib.api.github_api import get_commits_message
-from lib.utils.message_factories import get_leaderboard
+from lib.message_factories.get_leaderboard import get_leaderboard
 from lib.utils.general_utils import clear_dir_contents
 
 nest_asyncio.apply()
@@ -78,8 +78,9 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger) -> N
     # ledger
     me = await bot.get_me()
     try:
+        ledger.genesis_id = me.id
         ledger.fee_percentage = storage.fee_percentage
-        ledger_info_msg = ledger.load_and_verify_chain(me.id, me.username)
+        ledger_info_msg = ledger.load_and_verify_chain(me.username)
     except LedgerError as e:
         await notification(str(e), bot)
         await bot.session.close()

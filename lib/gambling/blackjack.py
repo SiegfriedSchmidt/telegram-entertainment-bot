@@ -3,7 +3,7 @@ import numpy as np
 import math
 import random
 from lib.init import blackjack_assets_folder_path, tmp_folder_path
-from lib.ledger import Ledger
+from lib.ledger.ledger import Ledger
 from lib.models import BlackjackResultType, StatsType
 from lib import database
 from lib.temporal_storage import UserProfile
