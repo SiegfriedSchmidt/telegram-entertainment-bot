@@ -56,7 +56,7 @@ class Block(BaseModel):
 
     def __str__(self):
         return (f'Block: {self.height}, miner: {self.miner}, base reward: {self.base_reward}, '
-                f'total fees: {self.total_fees} nonce: {self.nonce}, hash: {self.block_hash[:16]}..., '
+                f'total fees: {self.total_fees}, nonce: {self.nonce}, hash: {self.block_hash[:16]}..., '
                 f'timestamp: {from_iso(str(self.timestamp))}')
 
     class Meta:
@@ -215,7 +215,7 @@ def get_total_users_blocks_count(genesis_user_id: int) -> int:
 
 
 def get_last_block() -> Block:
-    return Block.select(Block.height, Block.block_hash).order_by(Block.height.desc()).first()
+    return Block.select(Block.height, Block.nonce, Block.block_hash).order_by(Block.height.desc()).first()
 
 
 def update_user_stats(user_or_id: int | User, stat_type: StatsType, increment: int = 1):

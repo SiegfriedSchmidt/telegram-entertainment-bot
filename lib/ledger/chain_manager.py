@@ -8,6 +8,7 @@ from threading import Lock
 import lib.database as database
 from lib.database import db, Transaction, Block, User
 from lib.logger import ledger_logger
+from libcpp.cpp_wrapper import reward_function
 
 GENESIS_BLOCK_REWARD = int(1e9)
 mining_lock = Lock()
@@ -38,10 +39,6 @@ class ChainManager:
     def set_genesis_id(self, genesis_id: int) -> None:
         self.genesis_id = genesis_id
 
-    @staticmethod
-    def reward_function(base_reward: int, block_number: int) -> int:
-        return base_reward + block_number * 0
-
     def load_and_verify_chain(self, genesis_username: str) -> str:
         t = time.monotonic()
         self._state.clear()
@@ -58,7 +55,7 @@ class ChainManager:
                     f"Genesis user id mismatch! '{blocks[0].miner.id}' != '{self.genesis_id}'"
                 )
 
-            prev_hash = EMPTY_HASH
+            prev_block = self.get_last_block(empty_block=True)
             for height, block in enumerate(blocks):
                 txs = database.get_block_transactions(block, ascending=True)
 
@@ -83,7 +80,7 @@ class ChainManager:
 
                 miner_reward = coinbase_tx.amount
                 total_fees = self.calculate_total_fees(txs)
-                expected_base_reward = self.reward_function(self.base_block_reward, block.height)
+                expected_base_reward = reward_function(self.base_block_reward, prev_block.height + 1, prev_block.nonce)
                 if block.height != 0 and (
                         block.base_reward != expected_base_reward or block.total_fees != total_fees or miner_reward != expected_base_reward + total_fees
                 ):
@@ -104,7 +101,8 @@ class ChainManager:
 
                 try:
                     expected_block = self.create_block(
-                        miner, merkle_root, height, prev_hash, self.diff, block.base_reward, block.total_fees,
+                        miner, merkle_root, height, prev_block.block_hash, self.diff, block.base_reward,
+                        block.total_fees,
                         block.nonce, block.timestamp
                     )
                 except BlockNotMined as e:
@@ -118,7 +116,7 @@ class ChainManager:
                     )
 
                 self._state.apply_tx(txs)
-                prev_hash = block.block_hash
+                prev_block = expected_block
 
         pending_txs = database.get_pending_transactions(ascending=True)
         self._state.apply_tx(pending_txs)
@@ -156,7 +154,7 @@ class ChainManager:
                      pending_txs: list[Transaction] = None, nonce: int = None) -> Block:
         last_block = self.get_last_block()
         if base_reward is None:
-            base_reward = self.reward_function(self.base_block_reward, last_block.height + 1)
+            base_reward = reward_function(self.base_block_reward, last_block.height + 1, last_block.nonce)
         if pending_txs is None:
             pending_txs = []
 
@@ -183,9 +181,9 @@ class ChainManager:
             return block
 
     @staticmethod
-    def get_last_block() -> Block:
-        last_block = database.get_last_block()
-        return last_block if last_block else Block(height=-1, block_hash=EMPTY_HASH)
+    def get_last_block(empty_block=False) -> Block:
+        last_block = database.get_last_block() if not empty_block else None
+        return last_block if last_block else Block(height=-1, nonce=0, block_hash=EMPTY_HASH)
 
     @staticmethod
     def create_block(miner: User, merkle_root: str, height: int, prev_hash: str, diff: str,

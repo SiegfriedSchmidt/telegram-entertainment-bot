@@ -5,8 +5,21 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        gcc \
+        make \
+        python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Prepare requirements
 COPY requirements.txt .
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.txt
+
+# Build libcpp
+COPY libcpp ./libcpp
+RUN mkdir -p libcpp/build && \
+    make -C libcpp
 
 FROM denoland/deno:bin AS deno
 
@@ -29,6 +42,7 @@ COPY --from=builder /app/wheels /wheels
 RUN pip install --no-cache-dir /wheels/* && \
     rm -rf /wheels
 
+COPY --from=builder /app/libcpp/build /app/libcpp/build
 COPY --from=deno /deno /usr/local/bin/deno
 
 #RUN addgroup --gid 1001 --system app && \
@@ -42,11 +56,11 @@ RUN addgroup --gid 1001 --system app && \
 USER app
 STOPSIGNAL SIGINT
 
-ENV MPLCONFIGDIR=/home/app/.config/matplotlib \
-    SECRET_FOLDER_PATH=/app/secret \
-    DATA_FOLDER_PATH=/app/data \
-    ASSETS_FOLDER_PATH=/app/assets \
-    MIGRATIONS_FOLDER_PATH=/app/migrations
+ENV MPLCONFIGDIR=/home/app/.config/matplotlib
+ENV SECRET_FOLDER_PATH=/app/secret
+ENV DATA_FOLDER_PATH=/app/data
+ENV ASSETS_FOLDER_PATH=/app/assets
+ENV MIGRATIONS_FOLDER_PATH=/app/migrations
 
 COPY . /app
 ENTRYPOINT ["python3", "main.py"]
