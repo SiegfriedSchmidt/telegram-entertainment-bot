@@ -277,7 +277,7 @@ def create_router():
             biggest = True
             args.pop(0)
 
-        limit = int(args[0]) if len(args) >= 1 else 50
+        limit = int(args[0]) if len(args) >= 1 else 20
         offset = txs_count - int(args[1]) if len(args) == 2 else None
 
         if biggest:
@@ -304,7 +304,7 @@ def create_router():
         blocks_count = database.get_blocks_count()
 
         args = get_args(command, 0, 2)
-        limit = int(args[0]) if len(args) >= 1 else 50
+        limit = int(args[0]) if len(args) >= 1 else 10
         offset = blocks_count - int(args[1]) if len(args) == 2 else None
 
         blocks = database.get_blocks(limit=limit, offset=offset)
@@ -328,7 +328,7 @@ def create_router():
             return await message.answer(f"User {user} does not exist!")
 
         blocks_count = database.get_user_blocks_count(user.id)
-        limit = int(args[0]) if len(args) >= 1 else 50
+        limit = int(args[0]) if len(args) >= 1 else 10
         offset = blocks_count - int(args[1]) if len(args) == 2 else None
 
         blocks = database.get_user_blocks(user.id, limit=limit, offset=offset)
