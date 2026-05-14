@@ -37,6 +37,10 @@ def create_router():
     async def bipki_message(message: types.Message):
         await message.react([ReactionTypeEmoji(emoji='🔥')])
 
+    @router.message(F.text.lower().contains('docker') | F.text.lower().contains('докер') | (F.sticker.emoji == "🐳"))
+    async def docker_message(message: types.Message):
+        await message.react([ReactionTypeEmoji(emoji='🐳')])
+
     @router.message(F.dice.emoji == "🎰")
     async def dice_message(message: types.Message, gambler: Gambler, user: UserProfile):
         await gambler.gamble(message, user)
