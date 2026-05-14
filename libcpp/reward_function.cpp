@@ -11,7 +11,7 @@ extern "C" {
         constexpr double k = 1.538;
         constexpr double e = 2.71828;
 
-        if(num <= 1329) {
+        if(num <= 1328) {
             return base_reward;
         }
 
