@@ -9,8 +9,7 @@ from datetime import datetime
 from lib.database import db, Transaction
 from lib.logger import ledger_logger
 import lib.database as database
-
-MONEY_TYPE = int | str | float
+from lib.models import MONEY_TYPE
 
 
 class TxManager:
@@ -76,8 +75,8 @@ class TxManager:
         self.save_tx(tx)
         return tx
 
-    def record_deposit(self, from_user_id: int, amount: MONEY_TYPE, description: str = None):
-        self.record_transaction(from_user_id, self.genesis_id, amount, description, deduct_fee=True)
+    def record_deposit(self, from_user_id: int, amount: MONEY_TYPE, description: str = None, deduct_fee=True):
+        self.record_transaction(from_user_id, self.genesis_id, amount, description, deduct_fee=deduct_fee)
 
     def record_gain(self, to_user_id: int, amount: MONEY_TYPE, description: str = None):
         self.record_transaction(self.genesis_id, to_user_id, amount, description, deduct_fee=True)

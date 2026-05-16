@@ -17,7 +17,7 @@ class TemporalStorage:
             id=user_id,
             username=username,
             nonce=random.randint(1, 1000),
-            gamble_bet=100,
+            slot_bet=100,
             blackjack_bet=100,
             galton_bet=100,
             galton_balls=1,

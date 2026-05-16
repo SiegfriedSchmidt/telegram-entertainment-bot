@@ -1,6 +1,23 @@
+from contextlib import contextmanager
 from lib.database import Transaction, User
-import lib.database as database
 from lib.ledger.validator import BalanceError
+import lib.database as database
+
+
+class FreezeHandle:
+    def __init__(self, state: 'StateManager', user_id: int, amount: int):
+        self._state = state
+        self.user_id = user_id
+        self.amount = amount
+        self._released = False
+
+    def release(self) -> None:
+        if not self._released:
+            self._state.release_handle(self)
+            self._released = True
+
+    def __del__(self):
+        self.release()
 
 
 class StateManager:
@@ -17,9 +34,10 @@ class StateManager:
     def __update_balance(self, tx: Transaction) -> None:
         if tx.from_user:
             deduction = tx.amount + tx.fee
-            if tx.from_user.id not in self.__balances or self.__balances[tx.from_user.id] < deduction:
-                raise BalanceError(f"Insufficient balance! {self.__balances[tx.from_user.id]} < {deduction}")
-            self.__balances[tx.from_user.id] -= deduction
+            available = self.__balances.get(tx.from_user.id, 0)
+            if available < deduction:
+                raise BalanceError(f"Insufficient balance! {available} < {deduction}")
+            self.__balances[tx.from_user.id] = available - deduction
 
         if tx.to_user.id not in self.__balances:
             self.__balances[tx.to_user.id] = tx.amount
@@ -43,6 +61,31 @@ class StateManager:
         else:
             for tx in txs:
                 self.__update_balance(tx)
+
+    def freeze(self, user_id: int, amount: int) -> FreezeHandle:
+        if amount <= 0:
+            return FreezeHandle(self, user_id, 0)
+
+        available = self.get_user_balance(user_id)
+        if available < amount:
+            raise BalanceError(f"Insufficient balance! {available} < {amount}")
+
+        self.__balances[user_id] = available - amount
+        return FreezeHandle(self, user_id, amount)
+
+    def release_handle(self, handle: FreezeHandle) -> None:
+        self.__balances[handle.user_id] = self.get_user_balance(handle.user_id) + handle.amount
+
+    @contextmanager
+    def frozen_balance(self, user_id: int, amount: int):
+        handle = self.freeze(user_id, amount)
+        try:
+            yield handle
+        except Exception:
+            handle.release()
+            raise
+        finally:
+            handle.release()
 
     def get_user_balance(self, user_id: int) -> int:
         return self.__balances.get(user_id, 0)

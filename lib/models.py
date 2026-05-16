@@ -15,11 +15,14 @@ class BaseEnum(Enum, metaclass=MetaEnum):
     pass
 
 
+MONEY_TYPE = int | str | float
+
+
 class UserModel(BaseModel):
     id: int
     username: str | None
     nonce: int
-    gamble_bet: int
+    slot_bet: int
     galton_bet: int
     blackjack_bet: int
     galton_balls: int
@@ -34,7 +37,7 @@ class BlackjackResultType(str, BaseEnum):
     surrender = 'surrender'
 
 
-class GainType(str, BaseEnum):
+class SlotResultType(str, BaseEnum):
     big_jackpot = 'big_jackpot'
     jackpot = 'jackpot'
     nice_win = 'nice_win'
@@ -44,7 +47,7 @@ class GainType(str, BaseEnum):
 class StatsType(str, BaseEnum):
     prizes = 'prizes'
     mine = 'mine'
-    gamble = 'gamble'
+    slot = 'slot'
     galton = 'galton'
     blackjack_win = 'blackjack_win'
     blackjack_all = 'blackjack_all'

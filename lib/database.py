@@ -232,7 +232,7 @@ def update_user_stats(user_or_id: int | User, stat_type: StatsType, increment: i
             stats.prizes += increment
         case StatsType.mine:
             stats.mine += increment
-        case StatsType.gamble:
+        case StatsType.slot:
             stats.gamble += increment
         case StatsType.galton:
             stats.galton += increment

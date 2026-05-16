@@ -2,7 +2,7 @@ from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ReactionTypeEmoji
 from lib.config_reader import config
-from lib.gambling.gambler import Gambler
+from lib.gambling.games.SlotGame import SlotGame
 from lib.ledger.ledger import Ledger
 from lib.middlewares.user_middleware import UserMiddleware
 from lib.states.confirmation_state import ConfirmationState
@@ -42,8 +42,8 @@ def create_router():
         await message.react([ReactionTypeEmoji(emoji='🐳')])
 
     @router.message(F.dice.emoji == "🎰")
-    async def dice_message(message: types.Message, gambler: Gambler, user: UserProfile):
-        await gambler.gamble(message, user)
+    async def dice_message(message: types.Message, ledger: Ledger, user: UserProfile):
+        await SlotGame(ledger, user).gamble(message)
 
     @router.message(F.text.regexp(VIDEO_LINK_REGEX))
     async def video_link_message(message: types.Message):

@@ -12,7 +12,6 @@ from lib.workers import workers
 # from lib.api.meme_api import get_meme
 from lib.bot_commands import set_bot_commands
 from lib.config_reader import config
-from lib.gambling.gambler import Gambler
 from lib.init import tmp_folder_path, bot_version
 from lib.ledger.ledger import Ledger, LedgerError
 from lib.llms.openrouter import OpenrouterLLM
@@ -152,14 +151,12 @@ async def main():
     # TODO: shared class union, change name for api keys, move gemini api
     scheduler = AsyncIOScheduler()
     ledger = Ledger(storage.mine_block_reward)
-    gambler = Gambler(ledger)
     openrouter_llm = OpenrouterLLM(config.gemini_api_key)
 
     await dp.start_polling(
         bot, allowed_updates=dp.resolve_used_update_types(),
         scheduler=scheduler,
         ledger=ledger,
-        gambler=gambler,
         openrouter_llm=openrouter_llm
     )
 

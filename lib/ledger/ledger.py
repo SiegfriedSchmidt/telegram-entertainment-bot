@@ -1,9 +1,11 @@
+from contextlib import contextmanager
 from typing import BinaryIO
 
 from lib.database import Transaction
 from lib.ledger.chain_manager import ChainManager
 from lib.ledger.state_manager import StateManager
-from lib.ledger.tx_manager import TxManager, MONEY_TYPE
+from lib.ledger.tx_manager import TxManager
+from lib.models import MONEY_TYPE
 from lib.ledger.validator import LedgerError
 
 
@@ -58,6 +60,14 @@ class Ledger:
     def get_all_total_gains(self):
         return self._state.get_all_total_gains()
 
+    def freeze(self, user_id: int, amount: int):
+        return self._state.freeze(user_id, amount)
+
+    @contextmanager
+    def frozen_balance(self, user_id: int, amount: MONEY_TYPE):
+        with self._state.frozen_balance(user_id, amount) as frozen:
+            yield frozen
+
     def load_and_verify_chain(self, genesis_username: str):
         return self._chain.load_and_verify_chain(genesis_username)
 
@@ -67,11 +77,14 @@ class Ledger:
     def record_transaction(self, from_user_id: int, to_user_id: int, amount: MONEY_TYPE, description: str):
         return self._tx.record_transaction(from_user_id, to_user_id, amount, description)
 
-    def record_deposit(self, from_user_id: int, amount: MONEY_TYPE, description: str):
-        return self._tx.record_deposit(from_user_id, amount, description)
+    def record_deposit(self, from_user_id: int, amount: MONEY_TYPE, description: str, deduct_fee=True):
+        return self._tx.record_deposit(from_user_id, amount, description, deduct_fee)
 
     def record_gain(self, to_user_id: int, amount: MONEY_TYPE, description: str):
         return self._tx.record_gain(to_user_id, amount, description)
+
+    def calc_fee(self, amount: MONEY_TYPE):
+        return self._tx.calc_fee(amount)
 
     def delete_pending_transactions(self):
         return self._tx.delete_pending_transactions()

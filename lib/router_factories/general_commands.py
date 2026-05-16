@@ -8,7 +8,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, FSInputFile, InputMediaAnimation
 from aiogram.utils.chat_action import ChatActionMiddleware
 from lib import database
-from lib.gambling.blackjack import Blackjack
+from lib.gambling.games.DailySlotGame import DailySlotGame
+from lib.gambling.games.SlotGame import SlotGame
+from lib.gambling.games.GaltonGame import GaltonGame
+from lib.gambling.games.BlackjackGame import BlackjackGame
 from lib.bot_commands import text_bot_general_commands, text_bot_admin_commands
 from lib.config_reader import config
 from lib.init import galton_backgrounds_folder_path
@@ -18,7 +21,6 @@ from lib.ledger.chain_manager import BlockNotMined
 from lib.api.joke_api import get_joke
 from lib.api.meme_api import get_meme
 from lib.api.geoip_api import geoip
-from lib.gambling.gambler import Gambler
 from lib.llms.general_llm import Dialog
 from lib.llms.openrouter import OpenrouterLLM
 from lib.middlewares.user_middleware import UserMiddleware
@@ -160,17 +162,17 @@ def create_router():
         return await message.answer('https://www.youtube-nocookie.com/embed/8V1eO0Ztuis')
 
     @router.message(Command("gamble"))
-    async def gamble_cmd(message: types.Message, command: CommandObject, gambler: Gambler, user: UserProfile):
+    async def gamble_cmd(message: types.Message, command: CommandObject, ledger: Ledger, user: UserProfile):
         args = get_args(command, 0, 1)
         bet = args[0] if len(args) == 1 else None
-        return await gambler.gamble(message, user, bet)
+        return await SlotGame(ledger, user, bet).gamble(message)
 
     @router.message(Command("galton"))
-    async def galton_cmd(message: types.Message, command: CommandObject, gambler: Gambler, user: UserProfile):
+    async def galton_cmd(message: types.Message, command: CommandObject, ledger: Ledger, user: UserProfile):
         args = get_args(command, 0, 2)
         bet = args[0] if len(args) >= 1 else None
         balls = args[1] if len(args) == 2 else ('1' if len(args) == 1 else None)
-        return await gambler.galton(message, user, bet, balls)
+        return await GaltonGame(ledger, user, bet, balls).gamble(message)
 
     @router.message(Command("blackjack"))
     async def blackjack_cmd(message: types.Message, command: CommandObject, state: FSMContext, user: UserProfile,
@@ -178,7 +180,7 @@ def create_router():
         args = get_args(command, 0, 1)
         bet = args[0] if len(args) == 1 else user.blackjack_bet
 
-        blackjack = Blackjack(ledger, user, bet)
+        blackjack = BlackjackGame(ledger, user, bet)
         filename = blackjack.start()
         image = FSInputFile(filename, filename=str(filename))
         user.blackjack_bet = bet
@@ -259,9 +261,9 @@ def create_router():
             await message.answer('abort')
 
     @router.message(Command("daily_prize"))
-    async def daily_prize_cmd(message: types.Message, gambler: Gambler, user: UserProfile):
+    async def daily_prize_cmd(message: types.Message, ledger: Ledger, user: UserProfile):
         if database.is_available_daily_prize(user.id):
-            return await gambler.daily_prize(message, user)
+            return await DailySlotGame(ledger, user).gamble(message)
         else:
             return await message.answer('Your daily prize already obtained! Wait for the next day!')
 

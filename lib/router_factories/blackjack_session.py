@@ -1,7 +1,7 @@
 from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import FSInputFile, InputMediaPhoto
-from lib.gambling.blackjack import Blackjack
+from lib.gambling.games.BlackjackGame import BlackjackGame
 from lib.callbacks.blackjack_callback import BlackjackCallback
 from lib.keyboards.blackjack_keyboard import get_blackjack_keyboard
 from lib.middlewares.blackjack_game_access_middleware import BlackjackGameAccessMiddleware
@@ -17,7 +17,7 @@ def create_router():
 
     @router.callback_query(BlackjackCallback.filter(F.action == "hit"))
     async def hit_cmd(callback: types.CallbackQuery, state: FSMContext):
-        blackjack: Blackjack = (await state.get_data()).get("blackjack")
+        blackjack: BlackjackGame = (await state.get_data()).get("blackjack")
         filename, lose = blackjack.hit()
 
         image = FSInputFile(filename, filename=str(filename))
@@ -31,7 +31,7 @@ def create_router():
 
     @router.callback_query(BlackjackCallback.filter(F.action == "stand"))
     async def stand_cmd(callback: types.CallbackQuery, state: FSMContext):
-        blackjack: Blackjack = (await state.get_data()).get("blackjack")
+        blackjack: BlackjackGame = (await state.get_data()).get("blackjack")
         filename, result = blackjack.stand()
         caption = blackjack.get_caption_and_record_gain(result)
 
@@ -43,7 +43,7 @@ def create_router():
 
     @router.callback_query(BlackjackCallback.filter(F.action == "surrender"))
     async def surrender_cmd(callback: types.CallbackQuery, state: FSMContext):
-        blackjack: Blackjack = (await state.get_data()).get("blackjack")
+        blackjack: BlackjackGame = (await state.get_data()).get("blackjack")
         filename = blackjack.surrender()
         caption = blackjack.get_caption_and_record_gain(BlackjackResultType.surrender)
 
