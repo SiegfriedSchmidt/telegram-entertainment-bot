@@ -96,7 +96,7 @@ def create_router():
             else:
                 return await message.answer("No question to answer.")
 
-        answer = await message.reply(f'asking {provider.model}...')
+        answer = await message.reply(f'asking {provider.PROVIDER}:{provider.model}...')
 
         try:
             response = await provider.ask(question)
@@ -371,39 +371,39 @@ def create_router():
             nonce = user.nonce
 
         user.nonce = nonce
-        if seconds := database.is_unavailable_mine_attempt(user.id):
-            return await message.answer(f"You already used your mine attempt. Next attempt in {seconds} seconds.")
-
-        hashes = []
         failure_msg = None
-        for i in range(storage.mine_block_user_attempts):
-            try:
-                block = ledger.mine_block(user.id, nonce)
-                await message.answer_animation(
-                    "https://media1.tenor.com/m/9qZhM0uswAYAAAAd/bully-maguire-dance.gif",
-                    caption=f"<b>SUCCESS! BLOCK REWARD: {block.base_reward + block.total_fees} (fees {block.total_fees})!"
-                            f"</b>\nBlock <b>{block.height}</b> with nonce <b>{block.nonce}</b> mined by <b>{block.miner}</b>!\n"
-                            f"Block hash: <b>{block.block_hash[:16]}...</b>.",
+        if seconds := database.is_unavailable_mine_attempt(user.id):
+            failure_msg = await message.answer(
+                f"You already used your mine attempt. Next attempt in {seconds} seconds."
+            )
+        else:
+            hashes = []
+            for i in range(storage.mine_block_user_attempts):
+                try:
+                    block = ledger.mine_block(user.id, nonce)
+                    await message.answer_animation(
+                        "https://media1.tenor.com/m/9qZhM0uswAYAAAAd/bully-maguire-dance.gif",
+                        caption=f"<b>SUCCESS! BLOCK REWARD: {block.base_reward + block.total_fees} (fees {block.total_fees})!"
+                                f"</b>\nBlock <b>{block.height}</b> with nonce <b>{block.nonce}</b> mined by <b>{block.miner}</b>!\n"
+                                f"Block hash: <b>{block.block_hash[:16]}...</b>.",
+                        parse_mode='html'
+                    )
+                    break
+                except BlockNotMined as e:
+                    hashes.append(f"{len(hashes) + 1}. {e.block_hash[:16]}...")
+            else:
+                hashes = hashes[:8] + hashes[-8:]
+                hashes_text = '\n'.join(hashes)
+                failure_msg = await message.answer(
+                    f"<b>FAILURE!</b>\n{storage.mine_block_user_attempts} attempts:\n{hashes_text}\nNext attempt in {storage.mine_block_user_timeout} seconds!",
                     parse_mode='html'
                 )
-                break
-            except BlockNotMined as e:
-                hashes.append(f"{len(hashes) + 1}. {e.block_hash[:16]}...")
-        else:
-            hashes = hashes[:8] + hashes[-8:]
-            hashes_text = '\n'.join(hashes)
-            failure_msg = await message.answer(
-                f"<b>FAILURE!</b>\n{storage.mine_block_user_attempts} attempts:\n{hashes_text}\nNext attempt in {storage.mine_block_user_timeout} seconds!",
-                parse_mode='html'
-            )
 
         await asyncio.sleep(3)
         if await is_bot_admin(message):
             await message.delete()
         if failure_msg:
             await failure_msg.delete()
-
-        return None
 
     @router.message(Command("explore_block"))
     async def explore_block_cmd(message: types.Message, command: CommandObject):
