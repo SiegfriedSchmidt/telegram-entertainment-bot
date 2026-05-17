@@ -1,9 +1,10 @@
+from abc import ABC
 from lib.gambling.base import BaseGame
 from lib.models import SlotResultType
 from aiogram import types
 
 
-class BaseSlotGame(BaseGame):
+class BaseSlotGame(BaseGame, ABC):
     @staticmethod
     def convert_dice_val(dice_val: int):
         # bar, plum, lemon, seven

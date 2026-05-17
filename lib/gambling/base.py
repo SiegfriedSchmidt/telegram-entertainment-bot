@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from lib.ledger.ledger import Ledger
 from lib.ledger.state_manager import FreezeHandle
 from lib.models import MONEY_TYPE
@@ -23,7 +23,18 @@ class BaseGame(ABC):
     def get_balance_str(self) -> str:
         return f'{self.user}: {self.ledger.get_user_balance(self.user.id)} coins.'
 
+    @abstractmethod
+    async def play(self, *args, **kwargs):
+        pass
+
+    async def gamble(self, *args, **kwargs):
+        try:
+            await self.play(*args, **kwargs)
+        finally:
+            self.handle.release()
+
     def finish_game(self, game_name: str, multiplier: float = None, raw_win_amount: int = None) -> None:
+        self.handle.release()
         if raw_win_amount is None and multiplier is None:
             raise RuntimeError("Win amount and multiplier cannot be None at the same time!")
 
@@ -31,7 +42,6 @@ class BaseGame(ABC):
         net = win_amount - self.gamble_bet
         description = f"{game_name}" + (f" {multiplier}X" if multiplier is not None else "")
 
-        self.handle.release()
         if win_amount == 0:
             self.ledger.record_deposit(
                 from_user_id=self.user.id,

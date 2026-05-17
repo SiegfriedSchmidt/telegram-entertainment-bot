@@ -19,7 +19,7 @@ class DailySlotGame(BaseSlotGame):
     def __init__(self, ledger: Ledger, user: UserProfile):
         super().__init__(ledger, user, 0)
 
-    async def gamble(self, message: types.Message):
+    async def play(self, message: types.Message):
         dice_msg = await self.get_dice_msg(message)
         slot_result = self.determine_slot_result_type(dice_msg.dice.value)
         win_amount = daily_slot_multipliers[slot_result]

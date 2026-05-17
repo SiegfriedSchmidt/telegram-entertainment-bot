@@ -17,7 +17,7 @@ class GaltonGame(BaseGame):
         super().__init__(ledger, user, user_bet if user_bet else user.galton_bet)
         self.user_balls = self.user.galton_balls if user_balls is None else int(user_balls)
 
-    async def gamble(self, message: types.Message):
+    async def play(self, message: types.Message):
         if self.user.galton_running_count >= storage.galton_max_concurrent_per_user:
             return await message.reply(
                 f"The limit of concurrent galtons exceeded! Only {storage.galton_max_concurrent_per_user} concurrent galtons allowed."
@@ -38,14 +38,18 @@ class GaltonGame(BaseGame):
 
         physics_simulation = PhysicsSimulation()
         background_path = database.get_galton_background_path(self.user.id)
-        multiplier, filename, duration = await workers.enqueue(physics_simulation.run, self.user_balls, background_path)
 
-        animation = types.FSInputFile(filename, filename=str(filename))
-        media = types.InputMediaAnimation(media=animation, caption=None)
-        await galton_msg.edit_media(media)
-        await asyncio.sleep(duration + 2)
+        try:
+            multiplier, filename, duration = await workers.enqueue(
+                physics_simulation.run, self.user_balls, background_path
+            )
+            animation = types.FSInputFile(filename, filename=str(filename))
+            media = types.InputMediaAnimation(media=animation, caption=None)
+            await galton_msg.edit_media(media)
+            await asyncio.sleep(duration + 2)
+        finally:
+            self.user.galton_running_count -= 1
 
-        self.user.galton_running_count -= 1
         multiplier = round(multiplier / self.user_balls, 2)
         self.finish_game("Galton", multiplier)
 

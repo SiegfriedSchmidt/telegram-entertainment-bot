@@ -10,6 +10,7 @@ import pymunk
 import math
 import time
 import cv2
+import os
 
 _viridis_colors = plt.get_cmap('viridis')(np.linspace(0, 1, 256))[:, :3]
 
@@ -353,7 +354,7 @@ class PhysicsSimulation:
         if not writer.isOpened():
             writer.release()
             raise RuntimeError("cv2.VideoWriter failed to open")
-        if background_path is None:
+        if background_path is None or not os.path.isfile(background_path):
             background = np.full((height, width, 3), (172, 146, 140), dtype=np.uint8)
         else:
             background = cv2.resize(cv2.imread(background_path), (width, height))

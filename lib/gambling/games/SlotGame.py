@@ -21,7 +21,7 @@ class SlotGame(BaseSlotGame):
     def __init__(self, ledger: Ledger, user: UserProfile, user_bet: MONEY_TYPE = None):
         super().__init__(ledger, user, user_bet if user_bet else user.slot_bet)
 
-    async def gamble(self, message: types.Message):
+    async def play(self, message: types.Message):
         self.user.slot_bet = self.user_bet
 
         dice_msg = await self.get_dice_msg(message)

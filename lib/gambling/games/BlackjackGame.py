@@ -19,6 +19,9 @@ class BlackjackGame(BaseGame):
 
         super().__init__(ledger, user, user_bet if user_bet else user.blackjack_bet)
 
+    def play(self):
+        pass
+
     def get_random_card(self) -> str:
         return self.deck.pop()
 
