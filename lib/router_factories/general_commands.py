@@ -88,13 +88,19 @@ def create_router():
     @router.message(Command("ask"))
     async def ask_cmd(message: types.Message, command: CommandObject, provider: LLMProvider):
         args = command.args
+
+        question = ''
         if args:
             question = args
-        else:
-            if message.reply_to_message:
-                question = message.reply_to_message.text
-            else:
-                return await message.answer("No question to answer.")
+        if message.reply_to_message and (message.reply_to_message.text or message.reply_to_message.caption):
+            if question:
+                question += " "
+            if message.reply_to_message.text:
+                question += message.reply_to_message.text
+            if message.reply_to_message.caption:
+                question += message.reply_to_message.caption
+        if not question:
+            return await message.answer("No question to answer.")
 
         answer = await message.reply(f'asking {provider.PROVIDER}:{provider.model}...')
 
