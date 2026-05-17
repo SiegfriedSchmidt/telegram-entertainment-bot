@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, JsonConfigSettingsSource
 from pydantic import SecretStr
-from typing import Type, Tuple, List
+from typing import Type, Tuple, List, Dict
 from lib.init import settings_file_path
 
 
@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     group_ids: List[int]
     admin_ids: List[int]
     notification_ids: List[int]
+    providers_credentials: Dict[str, SecretStr]
     bot_token: SecretStr
-    gemini_api_key: SecretStr
     otp_secret: SecretStr
     server_video_url: str = ''
     proxy_url: str = ''

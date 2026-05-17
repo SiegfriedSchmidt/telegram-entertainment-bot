@@ -21,7 +21,8 @@ class TemporalStorage:
             blackjack_bet=100,
             galton_bet=100,
             galton_balls=1,
-            galton_running_count=0
+            galton_running_count=0,
+            llm_provider="openrouter"
         )
         self._users[user_id] = user
         return user

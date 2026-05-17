@@ -27,6 +27,7 @@ class UserModel(BaseModel):
     blackjack_bet: int
     galton_balls: int
     galton_running_count: int
+    llm_provider: str
 
 
 class BlackjackResultType(str, BaseEnum):

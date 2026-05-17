@@ -8,6 +8,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, FSInputFile, InputMediaAnimation
 from aiogram.utils.chat_action import ChatActionMiddleware
 from lib import database
+from lib.LLM.llm_providers import LLMProviders
+from lib.LLM.base import LLMProvider
+from lib.callbacks.switch_provider_callback import SwitchProviderCallback
 from lib.gambling.games.DailySlotGame import DailySlotGame
 from lib.gambling.games.SlotGame import SlotGame
 from lib.gambling.games.GaltonGame import GaltonGame
@@ -16,13 +19,12 @@ from lib.bot_commands import text_bot_general_commands, text_bot_admin_commands
 from lib.config_reader import config
 from lib.init import galton_backgrounds_folder_path
 from lib.keyboards.blackjack_keyboard import get_blackjack_keyboard
+from lib.keyboards.switch_provider_keyboard import get_switch_provider_keyboard
 from lib.ledger.ledger import Ledger
 from lib.ledger.chain_manager import BlockNotMined
 from lib.api.joke_api import get_joke
 from lib.api.meme_api import get_meme
 from lib.api.geoip_api import geoip
-from lib.llms.general_llm import Dialog
-from lib.llms.openrouter import OpenrouterLLM
 from lib.middlewares.user_middleware import UserMiddleware
 from lib.gambling.physics_simulation import PhysicsSimulation
 from lib.gambling.roulette import render_roulette
@@ -40,6 +42,7 @@ def create_router():
     router = Router()
     router.message.middleware(ChatActionMiddleware())
     router.message.middleware(UserMiddleware())
+    router.callback_query.middleware(UserMiddleware())
 
     @router.message(Command("h"))
     async def h_cmd(message: types.Message):
@@ -83,7 +86,7 @@ def create_router():
         return None
 
     @router.message(Command("ask"))
-    async def ask_cmd(message: types.Message, command: CommandObject, openrouter_llm: OpenrouterLLM):
+    async def ask_cmd(message: types.Message, command: CommandObject, provider: LLMProvider):
         args = command.args
         if args:
             question = args
@@ -93,12 +96,10 @@ def create_router():
             else:
                 return await message.answer("No question to answer.")
 
-        answer = await message.reply(f'asking {openrouter_llm.model}...')
-        dialog = Dialog()
-        dialog.add_user_message(question)
+        answer = await message.reply(f'asking {provider.model}...')
 
         try:
-            response = await openrouter_llm.chat_complete(dialog)
+            response = await provider.ask(question)
         finally:
             await answer.delete()
 
@@ -106,19 +107,19 @@ def create_router():
 
     @router.message(Command("change_llm_model"))
     async def change_llm_model_cmd(message: types.Message, command: CommandObject, state: FSMContext,
-                                   openrouter_llm: OpenrouterLLM):
+                                   provider: LLMProvider):
         args = get_args(command, 1, 1)
         model = args[0]
         await state.set_state(ConfirmationState.change_llm_model_confirmation)
         await state.set_data({"model": model})
-        await message.answer(f'Do you want to change llm model: "{openrouter_llm.model}" -> "{model}"? (y/n)')
+        await message.answer(f'Do you want to change llm model: "{provider.model}" -> "{model}"? (y/n)')
 
     @router.message(ConfirmationState.change_llm_model_confirmation)
-    async def change_llm_model(message: types.Message, state: FSMContext, openrouter_llm: OpenrouterLLM):
+    async def change_llm_model(message: types.Message, state: FSMContext, provider: LLMProvider):
         if message.text.lower() == "y":
             state_data = await state.get_data()
             model = state_data["model"]
-            openrouter_llm.model = model
+            provider.set_model(model)
             await message.answer(f"Changed llm model to {model}!")
         else:
             await message.answer('abort')
@@ -126,25 +127,38 @@ def create_router():
 
     @router.message(Command("change_llm_key"))
     async def change_llm_key_cmd(message: types.Message, command: CommandObject, state: FSMContext,
-                                 openrouter_llm: OpenrouterLLM):
+                                 provider: LLMProvider):
         args = get_args(command, 1, 1)
         api_key = args[0]
         await state.set_state(ConfirmationState.change_llm_key_confirmation)
         await state.set_data({"api_key": api_key})
         await message.answer(
-            f'Do you want to change llm api key: "{openrouter_llm.api_key[:16]}" -> "{api_key[:16]}"? (y/n)'
+            f'Do you want to change llm api key: "{provider.api_key[:16]}" -> "{api_key[:16]}"? (y/n)'
         )
 
     @router.message(ConfirmationState.change_llm_key_confirmation)
-    async def change_llm_key(message: types.Message, state: FSMContext, openrouter_llm: OpenrouterLLM):
+    async def change_llm_key(message: types.Message, state: FSMContext, provider: LLMProvider):
         if message.text.lower() == "y":
             state_data = await state.get_data()
             api_key = state_data["api_key"]
-            openrouter_llm.api_key = api_key
+            provider.set_api_key(api_key)
             await message.answer(f"Changed llm api key to {api_key[:16]}!")
         else:
             await message.answer('abort')
         return await state.clear()
+
+    @router.message(Command("switch_llm_provider"))
+    async def switch_llm_provider_cmd(message: types.Message, providers: LLMProviders):
+        return await message.answer(
+            f"Available providers",
+            reply_markup=get_switch_provider_keyboard(providers.names())
+        )
+
+    @router.callback_query(SwitchProviderCallback.filter())
+    async def switch_llm_provider(callback: types.CallbackQuery, callback_data: SwitchProviderCallback,
+                                  user: UserProfile):
+        user.llm_provider = callback_data.provider
+        return await callback.answer(f'Provider has been switched to {user.llm_provider}!')
 
     @router.message(Command("geoip"))
     async def geoip_cmd(message: types.Message, command: CommandObject):

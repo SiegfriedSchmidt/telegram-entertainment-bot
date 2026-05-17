@@ -1,16 +1,25 @@
-import aiohttp
+from lib.LLM.base import LLMProvider, Dialog
 from openai import AsyncOpenAI
-from pydantic import SecretStr
-from lib.llms.general_llm import LLM, Dialog
+import aiohttp
 
 
-class OpenrouterLLM(LLM):
-    def __init__(self, api_key: SecretStr, model="x-ai/grok-4.20-multi-agent"):
+class OpenAIProvider(LLMProvider):
+    PROVIDER = "OpenAI"
+
+    def __init__(self, base_url: str, api_key: str, model: str):
         super().__init__(api_key, model)
-        self.client = AsyncOpenAI(
-            base_url="https://openrouter.ai/api/v1",
+        self.base_url = base_url
+        self.client = self.create_client()
+
+    def create_client(self):
+        return AsyncOpenAI(
+            base_url=self.base_url,
             api_key=self.api_key,
         )
+
+    def set_api_key(self, api_key: str):
+        super().set_api_key(api_key)
+        self.client = self.create_client()
 
     async def chat_complete(self, dialog: Dialog) -> str:
         completion = await self.client.chat.completions.create(
@@ -26,7 +35,7 @@ class OpenrouterLLM(LLM):
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.get('https://openrouter.ai/api/v1/auth/key', headers=headers) as resp:
+            async with session.get(f'{self.base_url}/auth/key', headers=headers) as resp:
                 if resp.status == 200:
                     return await resp.text()
                 else:

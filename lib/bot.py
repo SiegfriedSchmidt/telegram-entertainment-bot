@@ -7,6 +7,7 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from lib.LLM.llm_providers import LLMProviders
 from lib.api.joke_api import get_joke
 from lib.workers import workers
 # from lib.api.meme_api import get_meme
@@ -14,7 +15,6 @@ from lib.bot_commands import set_bot_commands
 from lib.config_reader import config
 from lib.init import tmp_folder_path, bot_version
 from lib.ledger.ledger import Ledger, LedgerError
-from lib.llms.openrouter import OpenrouterLLM
 from lib.routers import public_commands, errors, group_admin, group_general, private_admin, inline_queries
 from lib.logger import main_logger
 from lib.middlewares.access_middleware import AccessMiddleware
@@ -151,13 +151,13 @@ async def main():
     # TODO: shared class union, change name for api keys, move gemini api
     scheduler = AsyncIOScheduler()
     ledger = Ledger(storage.mine_block_reward)
-    openrouter_llm = OpenrouterLLM(config.gemini_api_key)
+    providers = LLMProviders(config.providers_credentials)
 
     await dp.start_polling(
         bot, allowed_updates=dp.resolve_used_update_types(),
         scheduler=scheduler,
         ledger=ledger,
-        openrouter_llm=openrouter_llm
+        providers=providers
     )
 
 

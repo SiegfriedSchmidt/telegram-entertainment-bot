@@ -1,27 +1,35 @@
-import asyncio
+from lib.LLM.base import LLMProvider, Dialog
 from google import genai
 from google.genai import types
-from pydantic import SecretStr
-from lib.config_reader import config
 
 
 # https://github.com/googleapis/python-genai
-class GeminiApi:
-    def __init__(self, gemini_api_key: SecretStr, proxy_url: str = ''):
+class GoogleProvider(LLMProvider):
+    PROVIDER = "google"
+
+    def __init__(self, api_key: str, model="gemini-2.5-flash", proxy_url=''):
+        super().__init__(api_key, model)
+        self.client = self.create_client(proxy_url)
+
+    def create_client(self, proxy_url=''):
         http_options = types.HttpOptions(
             client_args={'proxy': proxy_url},
             async_client_args={'proxy': proxy_url},
         ) if proxy_url else None
 
-        self.client = genai.Client(
-            api_key=gemini_api_key.get_secret_value(),
+        return genai.Client(
+            api_key=self.api_key,
             http_options=http_options
         ).aio
 
-    async def ask(self, text: str, model="gemini-2.5-flash") -> str:
+    def set_api_key(self, api_key: str):
+        super().set_api_key(api_key)
+        self.client = self.create_client()
+
+    async def chat_complete(self, dialog: Dialog) -> str:
         response = await self.client.models.generate_content(
-            model=model,
-            contents=text,
+            model=self.model,
+            contents=str(dialog),
             # config=types.GenerateContentConfig(
             #     system_instruction=[
             #         'You are a helpful language translator.',
@@ -31,13 +39,5 @@ class GeminiApi:
         )
         return response.text
 
-
-gemini_api = GeminiApi(config.gemini_api_key, config.proxy_url)
-
-
-async def main():
-    print(await gemini_api.ask("Explain how AI works in a few words"))
-
-
-if __name__ == '__main__':
-    asyncio.run(main())
+    async def check_limits(self) -> str:
+        return "Not implemented"
