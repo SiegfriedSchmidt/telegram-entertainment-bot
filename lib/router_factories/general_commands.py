@@ -175,8 +175,8 @@ def create_router():
     @router.callback_query(SwitchProviderCallback.filter())
     async def switch_llm_provider(callback: types.CallbackQuery, callback_data: SwitchProviderCallback,
                                   user: UserProfile):
-        user.llm_provider = callback_data.provider
-        return await callback.answer(f'Provider has been switched to {user.llm_provider}!')
+        user.llm.provider = callback_data.provider
+        return await callback.answer(f'Provider has been switched to {user.llm.provider}!')
 
     @router.message(Command("geoip"))
     async def geoip_cmd(message: types.Message, command: CommandObject):
