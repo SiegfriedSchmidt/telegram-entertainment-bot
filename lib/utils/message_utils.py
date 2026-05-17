@@ -39,7 +39,7 @@ async def save_document(message: types.Message, path: str | Path) -> None:
         f.write(downloaded_file.read())
 
 
-async def get_name_or_id_with_reply(message: types.Message, arg: str | None = None) -> str | int:
+async def get_name_or_id_with_reply(message: types.Message, arg: str = None) -> str | int:
     if message.reply_to_message:
         name_or_id = message.reply_to_message.from_user.id
     elif arg is not None:
@@ -48,6 +48,21 @@ async def get_name_or_id_with_reply(message: types.Message, arg: str | None = No
         name_or_id = message.from_user.id
 
     return name_or_id
+
+
+async def get_question(message: types.Message, args: str = None) -> str:
+    question = ''
+    if args:
+        question = args
+    if message.reply_to_message and (message.reply_to_message.text or message.reply_to_message.caption):
+        if question:
+            question += " "
+        if message.reply_to_message.text:
+            question += message.reply_to_message.text
+        if message.reply_to_message.caption:
+            question += message.reply_to_message.caption
+
+    return question
 
 
 @runtime_checkable

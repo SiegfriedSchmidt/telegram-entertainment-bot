@@ -1,4 +1,5 @@
-from lib.LLM.base import LLMProvider, Dialog
+from lib.LLM.base import LLMProvider
+from lib.LLM.dialog import Dialog
 from openai import AsyncOpenAI
 import aiohttp
 

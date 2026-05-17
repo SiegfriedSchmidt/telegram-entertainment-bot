@@ -7,6 +7,8 @@ bot_general_commands = [
     BotCommand(command='joke', description='{joke_type:optional} - get joke'),
     BotCommand(command='meme', description='{subreddit:optional} - get meme from reddit'),
     BotCommand(command='ask', description='{prompt:optional} - ask AI'),
+    BotCommand(command='ask_context', description='{prompt:optional} - ask AI with context'),
+    BotCommand(command='clear_context', description='clear llm context'),
     BotCommand(command='change_llm_model', description='{model:required} - change llm model'),
     BotCommand(command='switch_llm_provider', description='switch llm provider'),
     BotCommand(command='change_llm_key', description='{api_key:required} - change llm api key'),

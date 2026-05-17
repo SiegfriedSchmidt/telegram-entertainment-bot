@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from lib.LLM.dialog import Dialog
+from pydantic import BaseModel, ConfigDict
 from enum import Enum, EnumMeta
 
 
@@ -18,6 +19,12 @@ class BaseEnum(Enum, metaclass=MetaEnum):
 MONEY_TYPE = int | str | float
 
 
+class LLMVariablesModel(BaseModel):
+    # model_config = ConfigDict(arbitrary_types_allowed=True)
+    provider: str
+    dialog: Dialog
+
+
 class UserModel(BaseModel):
     id: int
     username: str | None
@@ -27,7 +34,7 @@ class UserModel(BaseModel):
     blackjack_bet: int
     galton_balls: int
     galton_running_count: int
-    llm_provider: str
+    llm: LLMVariablesModel
 
 
 class BlackjackResultType(str, BaseEnum):

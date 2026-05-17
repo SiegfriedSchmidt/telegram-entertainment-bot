@@ -1,6 +1,7 @@
-import random
-from lib.models import UserModel
+from lib.LLM.dialog import Dialog
+from lib.models import UserModel, LLMVariablesModel
 from lib.utils.general_utils import get_name
+import random
 
 
 class UserProfile(UserModel):
@@ -22,7 +23,10 @@ class TemporalStorage:
             galton_bet=100,
             galton_balls=1,
             galton_running_count=0,
-            llm_provider="openrouter"
+            llm=LLMVariablesModel(
+                provider="google",
+                dialog=Dialog()
+            )
         )
         self._users[user_id] = user
         return user

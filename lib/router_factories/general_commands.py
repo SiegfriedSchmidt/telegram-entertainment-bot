@@ -34,7 +34,7 @@ from lib.storage import storage
 from lib.temporal_storage import UserProfile
 from lib.message_factories.get_leaderboard import get_leaderboard
 from lib.utils.general_utils import from_iso
-from lib.utils.message_utils import get_args, is_bot_admin, get_name_or_id_with_reply, large_respond
+from lib.utils.message_utils import get_args, is_bot_admin, get_name_or_id_with_reply, large_respond, get_question
 from lib.workers import workers
 
 
@@ -87,18 +87,7 @@ def create_router():
 
     @router.message(Command("ask"))
     async def ask_cmd(message: types.Message, command: CommandObject, provider: LLMProvider):
-        args = command.args
-
-        question = ''
-        if args:
-            question = args
-        if message.reply_to_message and (message.reply_to_message.text or message.reply_to_message.caption):
-            if question:
-                question += " "
-            if message.reply_to_message.text:
-                question += message.reply_to_message.text
-            if message.reply_to_message.caption:
-                question += message.reply_to_message.caption
+        question = await get_question(message, command.args)
         if not question:
             return await message.answer("No question to answer.")
 
@@ -110,6 +99,29 @@ def create_router():
             await answer.delete()
 
         return await large_respond(message, response)
+
+    @router.message(Command("ask_context"))
+    async def ask_context_cmd(message: types.Message, command: CommandObject, user: UserProfile, provider: LLMProvider):
+        question = await get_question(message, command.args)
+        if not question:
+            return await message.answer("No prompt provided.")
+
+        dialog = user.llm.dialog
+        dialog.add_user_message(question)
+        answer = await message.reply(f'asking (context {dialog.size()}) {provider.PROVIDER}:{provider.model}...')
+
+        try:
+            response = await provider.chat_complete(dialog)
+            dialog.add_assistant_message(response)
+        finally:
+            await answer.delete()
+
+        return await large_respond(message, response)
+
+    @router.message(Command("clear_context"))
+    async def clear_context_cmd(message: types.Message, user: UserProfile):
+        user.llm.dialog.clear()
+        return await message.reply("Context cleared.")
 
     @router.message(Command("change_llm_model"))
     async def change_llm_model_cmd(message: types.Message, command: CommandObject, state: FSMContext,

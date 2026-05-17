@@ -1,6 +1,7 @@
 from pydantic import SecretStr
 from lib.LLM.base import LLMProvider
 from lib.LLM.providers.google_provider import GoogleProvider
+from lib.LLM.providers.nvidia_provider import NvidiaProvider
 from lib.LLM.providers.openrouter_provider import OpenrouterProvider
 
 
@@ -14,6 +15,8 @@ class LLMProviders:
                     self.__providers[OpenrouterProvider.PROVIDER] = OpenrouterProvider(provider_api_key)
                 case GoogleProvider.PROVIDER:
                     self.__providers[GoogleProvider.PROVIDER] = GoogleProvider(provider_api_key, proxy_url=proxy_url)
+                case NvidiaProvider.PROVIDER:
+                    self.__providers[NvidiaProvider.PROVIDER] = NvidiaProvider(provider_api_key)
                 case _:
                     raise RuntimeError(f"Unknown provider: {provider_name}")
 

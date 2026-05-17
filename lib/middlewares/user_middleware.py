@@ -23,5 +23,5 @@ class UserMiddleware(BaseMiddleware):
             database.create_user(user_data.id, user_data.username)
 
         data['user'] = user
-        data['provider'] = providers[user.llm_provider]
+        data['provider'] = providers[user.llm.provider]
         await handler(event, data)
