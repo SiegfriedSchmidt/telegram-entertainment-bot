@@ -6,32 +6,40 @@ from lib.gambling.games.SlotGame import SlotGame
 from lib.ledger.ledger import Ledger
 from lib.middlewares.user_middleware import UserMiddleware
 from lib.states.confirmation_state import ConfirmationState
-from lib.temporal_storage import temporal_storage
 from lib.temporal_storage import UserProfile
 from lib.utils.command_utils import download_video
 from lib.utils.regex_utils import VIDEO_LINK_REGEX, get_video_link_from_text
+
+
+def create_notifications_trigger(router: Router, notification_name: str, notification_id: int):
+    @router.message(F.text.contains(notification_name))
+    async def user_message(message: types.Message, state: FSMContext):
+        await state.set_state(ConfirmationState.user_call_confirmation)
+        await state.set_data({"notification_name": notification_name, "notification_id": notification_id})
+        return await message.reply(
+            f"Did someone say {notification_name}?! Calling {notification_name} will cost 1000$. (y/n)"
+        )
 
 
 def create_router():
     router = Router()
     router.message.middleware(UserMiddleware())
 
-    @router.message(F.text.contains('admin'))
-    async def admin_message(message: types.Message, state: FSMContext):
-        await state.set_state(ConfirmationState.admin_call_confirmation)
-        return await message.reply(f"Did someone say admin?! Calling admin will cost 1000$. (y/n)")
+    for name, user_id in config.notification_ids.items():
+        create_notifications_trigger(router, name, user_id)
 
-    @router.message(ConfirmationState.admin_call_confirmation)
-    async def admin_call(message: types.Message, state: FSMContext, ledger: Ledger, user: UserProfile):
+    @router.message(ConfirmationState.user_call_confirmation)
+    async def user_call(message: types.Message, state: FSMContext, ledger: Ledger, user: UserProfile):
+        state_data = await state.get_data()
+        notification_name: str = state_data["notification_name"]
+        notification_id: int = state_data["notification_id"]
         await state.clear()
         if message.text.lower() == "y":
-            for chat_id in config.notification_ids:
-                to_user = temporal_storage.get_user(chat_id)
-                ledger.record_transaction(user.id, to_user.id, 1000, "Admin call")
-                await message.bot.send_message(chat_id, f'{user} summoning you!')
-            await message.answer('fine')
+            ledger.record_transaction(user.id, notification_id, 1000, f"{notification_name} call")
+            await message.bot.send_message(notification_id, f'{user} summoning you!')
+            await message.react([ReactionTypeEmoji(emoji='👍')])
         else:
-            await message.answer('abort')
+            await message.react([ReactionTypeEmoji(emoji='👎')])
 
     @router.message(F.text.lower().contains('bipki') | F.text.lower().contains('бипки'))
     async def bipki_message(message: types.Message):

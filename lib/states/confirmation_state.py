@@ -5,7 +5,7 @@ class ConfirmationState(StatesGroup):
     admin_send_confirmation = State()
     clear_videos_confirmation = State()
     transfer_confirmation = State()
-    admin_call_confirmation = State()
+    user_call_confirmation = State()
     galton_background_confirmation = State()
     change_llm_model_confirmation = State()
     change_llm_key_confirmation = State()

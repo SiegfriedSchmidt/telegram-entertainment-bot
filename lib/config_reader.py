@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     main_group_id: int
     group_ids: List[int]
     admin_ids: List[int]
-    notification_ids: List[int]
+    notification_ids: Dict[str, int]
     providers_credentials: Dict[str, SecretStr]
     bot_token: SecretStr
     otp_secret: SecretStr
