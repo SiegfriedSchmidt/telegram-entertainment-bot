@@ -14,7 +14,7 @@ daily_slot_multipliers = {
 
 
 class DailySlotGame(BaseSlotGame):
-    MIN_BET = 20
+    MIN_BET = 0
 
     def __init__(self, ledger: Ledger, user: UserProfile):
         super().__init__(ledger, user, 0)
