@@ -1,4 +1,5 @@
 from lib.LLM.dialog import Dialog
+from lib.config_reader import config
 from abc import ABC, abstractmethod
 
 
@@ -17,6 +18,7 @@ class LLMProvider(ABC):
 
     async def ask(self, text: str):
         dialog = Dialog()
+        dialog.add_system_message(config.llm_system_message)
         dialog.add_user_message(text)
         return await self.chat_complete(dialog)
 

@@ -1,3 +1,5 @@
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionUserMessageParam, \
+    ChatCompletionAssistantMessageParam, ChatCompletionSystemMessageParam
 from pydantic import GetCoreSchemaHandler
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler
 from pydantic_core import core_schema
@@ -5,35 +7,47 @@ from typing import Any
 
 
 class Dialog:
-    def __init__(self):
-        self.messages = []
+    def __init__(self, system_message: str = None):
+        self.messages: list[ChatCompletionMessageParam] = []
+        if system_message:
+            self.add_system_message(system_message)
 
-    def add_user_message(self, message):
-        self.messages.append({
-            "role": "user",
-            "content": message
-        })
+    def add_system_message(self, message: str):
+        self.messages.append(ChatCompletionSystemMessageParam(content=message, role="system"))
 
-    def add_assistant_message(self, message):
-        self.messages.append({
-            "role": "assistant",
-            "content": message
-        })
+    def add_user_message(self, message: str):
+        self.messages.append(ChatCompletionUserMessageParam(content=message, role="user"))
+
+    def add_assistant_message(self, message: str):
+        self.messages.append(ChatCompletionAssistantMessageParam(content=message, role="assistant"))
+
+    def get_system_message(self) -> str | None:
+        if self.messages and self.messages[0]["role"] == "system":
+            return self.messages[0]["content"]
+        return None
 
     def pop_message(self):
         self.messages.pop()
 
     def clear(self):
+        system_message = self.get_system_message()
         self.messages.clear()
+        if system_message:
+            self.add_system_message(system_message)
 
     def size(self):
         return sum(len(message["content"]) for message in self.messages)
 
-    def __str__(self):
+    def stringify(self, include_system=True) -> str:
         str_dialog = ''
         for message in self.messages:
+            if not include_system and message["role"] == "system":
+                continue
             str_dialog += f'---{message["role"]}---: {message["content"]}\n'
         return str_dialog
+
+    def __str__(self):
+        return self.stringify()
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type: Any, handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
@@ -41,20 +55,6 @@ class Dialog:
             """Wrap validator: called with (value, handler)"""
             if isinstance(value, cls):
                 return value
-
-            # Accept list of messages
-            if isinstance(value, list):
-                dialog = cls()
-                dialog.messages = value
-                return dialog
-
-            # Accept dict with messages
-            if isinstance(value, dict):
-                dialog = cls()
-                messages = value.get("messages") or value.get("message_list") or []
-                if isinstance(messages, list):
-                    dialog.messages = messages
-                return dialog
 
             if value is None:
                 return cls()

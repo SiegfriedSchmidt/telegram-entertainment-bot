@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     server_video_url: str = ''
     proxy_url: str = ''
     day_start_time: str = '11:00'
+    llm_system_message: str = ''
 
     @classmethod
     def settings_customise_sources(

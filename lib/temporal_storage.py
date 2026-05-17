@@ -1,4 +1,5 @@
 from lib.LLM.dialog import Dialog
+from lib.config_reader import config
 from lib.models import UserModel, LLMVariablesModel
 from lib.utils.general_utils import get_name
 import random
@@ -25,7 +26,7 @@ class TemporalStorage:
             galton_running_count=0,
             llm=LLMVariablesModel(
                 provider="google",
-                dialog=Dialog()
+                dialog=Dialog(system_message=config.llm_system_message)
             )
         )
         self._users[user_id] = user

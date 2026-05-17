@@ -30,13 +30,10 @@ class GoogleProvider(LLMProvider):
     async def chat_complete(self, dialog: Dialog) -> str:
         response = await self.client.models.generate_content(
             model=self.model,
-            contents=str(dialog),
-            # config=types.GenerateContentConfig(
-            #     system_instruction=[
-            #         'You are a helpful language translator.',
-            #         'Your mission is to translate text in English to French.'
-            #     ]
-            # ),
+            contents=dialog.stringify(include_system=False),
+            config=types.GenerateContentConfig(
+                system_instruction=dialog.get_system_message()
+            ),
         )
         return response.text
 
