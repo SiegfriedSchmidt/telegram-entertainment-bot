@@ -11,14 +11,20 @@ class BaseGame(ABC):
     def __init__(self, ledger: Ledger, user: UserProfile, user_bet: MONEY_TYPE):
         self.ledger = ledger
         self.user = user
-        self.user_bet = int(user_bet)
-        self.gamble_bet, self.handle = self.process_bet()
+        self.user_bet, self.gamble_bet, self.handle = self.process_bet(user_bet)
 
-    def process_bet(self) -> tuple[int, FreezeHandle]:
-        if self.user_bet < self.MIN_BET:
+    def process_bet(self, raw_bet: MONEY_TYPE) -> tuple[int, int, FreezeHandle]:
+        if raw_bet == "allin":
+            bet = self.ledger.get_user_balance(self.user.id)
+        else:
+            try:
+                bet = int(raw_bet)
+            except ValueError:
+                raise RuntimeError(f"Invalid bet {raw_bet}")
+        if bet < self.MIN_BET:
             raise RuntimeError(f"Bet cannot be less than {self.MIN_BET}!")
 
-        return self.ledger.calc_fee(self.user_bet)[0], self.ledger.freeze(self.user.id, self.user_bet)
+        return bet, self.ledger.calc_fee(bet)[0], self.ledger.freeze(self.user.id, bet)
 
     def get_balance_str(self) -> str:
         return f'{self.user}: {self.ledger.get_user_balance(self.user.id)} coins.'
