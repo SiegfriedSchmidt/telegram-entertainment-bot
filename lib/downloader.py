@@ -1,13 +1,25 @@
 import os
 import yt_dlp
+import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Union, List, Tuple, Callable
+from typing import Optional, Union, Tuple, Callable
 from lib.config_reader import config
 from lib.init import videos_folder_path, cookies_file_path
 from lib.logger import main_logger
 from lib.storage import storage
 from lib.utils.regex_utils import slugify_filename
 from lib.video_optimizer import VideoOptimizer
+
+
+@dataclass
+class VideoInfo:
+    downloaded: bool
+    url: str
+    info_path: Path
+    tmp_path: Path
+    video_path: Path
+    server_url: str
 
 
 def yt_dlp_hook(d):
@@ -56,6 +68,7 @@ class Downloader:
         )
 
         # Default options for yt-dlp
+        self.tmp_prefix = "tmp_"
         self.ydl_opts: yt_dlp._Params = {
             "format": format_selector,
             "format_sort": ["codec:avc", "res", "fps", "hdr:0", "br"],
@@ -64,7 +77,7 @@ class Downloader:
                 "key": "FFmpegVideoConvertor",
                 "preferedformat": "mp4",
             }],
-            "outtmpl": str(self.output_dir / "tmp_%(title)s.%(ext)s"),
+            "outtmpl": str(self.output_dir / f"{self.tmp_prefix}%(title)s.%(ext)s"),
             "restrictfilenames": False,
             "windowsfilenames": False,
             "noplaylist": True,  # Only download single videos by default,
@@ -93,25 +106,36 @@ class Downloader:
         else:
             self.ydl_opts["cookiefile"] = str(path)
 
-    def download(self, url: str, callback: Callable[[str], None] = None) -> \
-            Tuple[Optional[Tuple[Path, str, str, bool]], str]:
-        """
-        Download a single video by URL.
+    def prepare_info(self, url: str) -> VideoInfo:
+        with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            tmp_path = Path(ydl.prepare_filename(info))
 
-        Args:
-            url: The video URL to download.
-            callback: Callback function to call on update.
+            new_filename = slugify_filename(tmp_path.name[len(self.tmp_prefix):])
+            video_path = (tmp_path.parent / new_filename)
+            info_path = video_path.with_suffix('.json')
+            server_url = f"{config.server_video_url}/{video_path.name}" if config.server_video_url else ""
 
-        Returns:
-            The path to the downloaded file (str) or the yt-dlp info dict if return_info=True.
-        """
+            if video_path.is_file():
+                return VideoInfo(True, url, info_path, tmp_path, video_path, server_url)
+
+            if not info_path.exists():
+                with open(info_path, "w") as f:
+                    json.dump(info, f, ensure_ascii=False, indent=2)
+
+        return VideoInfo(False, url, info_path, tmp_path, video_path, server_url)
+
+    def download_video(self, video_info: VideoInfo, callback: Callable[[str], None] = None) -> Tuple[bool, str]:
         try:
-            with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                tmp_filepath = Path(ydl.prepare_filename(info))
+            if video_info.downloaded:
+                return False, "cached"
 
-                filename = slugify_filename(os.path.basename(tmp_filepath)[4:])
-                opt_needed, opt_info = self.optimizer.needs_optimization(tmp_filepath)
+            with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
+                error_code = ydl.download_with_info_file(str(video_info.info_path))
+                if error_code:
+                    raise RuntimeError(f"Error code: {error_code}")
+
+                opt_needed, opt_info = self.optimizer.needs_optimization(video_info.tmp_path)
 
                 if storage.optimize and opt_needed:
                     if callback:
@@ -119,29 +143,19 @@ class Downloader:
                 else:
                     opt_info = None
 
-                filepath, optimized = self.optimizer.process_download(tmp_filepath, filename, opt_info)
-                server_url = f"{config.server_video_url}/{filename}" if config.server_video_url else ""
-
-                return (filepath, filename, server_url, optimized), ''
+                optimized = self.optimizer.process_download(video_info.tmp_path, video_info.video_path, opt_info)
+                return False, 'optimized' if optimized else ''
         except Exception as e:
-            main_logger.error(f"[Downloader] Error downloading {url}: {e}", exc_info=e)
-            return None, str(e)
+            main_logger.error(f"[Downloader] Error downloading {video_info.url}: {e}", exc_info=e)
+            return True, str(e)
 
-    def batch_download(self, urls: List[str]) -> List[Optional[str]]:
-        """
-        Download multiple URLs.
-
-        Args:
-            urls: List of video URLs.
-
-        Returns:
-            List of local file paths (or None for failures).
-        """
-        results = []
-        for url in urls:
-            res = self.download(url)
-            results.append(res)
-        return results
+    def download(self, url: str, callback: Callable[[str], None] = None) -> Tuple[Optional[VideoInfo], str]:
+        info = self.prepare_info(url)
+        error, result = self.download_video(info, callback)
+        if error:
+            return None, result
+        else:
+            return info, result
 
 
 downloader = Downloader(videos_folder_path, logger=False)

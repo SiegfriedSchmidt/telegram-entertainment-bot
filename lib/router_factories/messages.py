@@ -49,6 +49,10 @@ def create_router():
     async def docker_message(message: types.Message):
         await message.react([ReactionTypeEmoji(emoji='🐳')])
 
+    @router.message(F.text.lower().contains('repo') | F.text.lower().contains('репо'))
+    async def repo_message(message: types.Message):
+        await message.react([ReactionTypeEmoji(emoji='❤‍🔥')])
+
     @router.message(F.dice.emoji == "🎰")
     async def dice_message(message: types.Message, ledger: Ledger, user: UserProfile):
         await SlotGame(ledger, user).gamble(message)

@@ -1,7 +1,7 @@
 import asyncio
-
 from aiogram import types
 from aiogram.types import LinkPreviewOptions, FSInputFile, InputMediaVideo
+from lib.downloader import VideoInfo
 from lib.downloader import downloader
 from lib.keyboards.link_keyboard import get_link_keyboard
 from lib.storage import storage
@@ -20,27 +20,25 @@ async def download_video(message: types.Message, url: str):
     def callback(text: str):
         asyncio.run_coroutine_threadsafe(edit_text_wrapper(text), main_loop)
 
-    result, error = await workers.enqueue(downloader.download, url, callback)
-    if error:
-        return await answer.edit_text(f"Download failed: {error}")
+    info, result = await workers.enqueue(downloader.download, url, callback)  # type: VideoInfo | None, str
+    if info is None:
+        return await answer.edit_text(f"Download failed: {result}")
 
-    filepath, filename, server_url, optimized = result
-    filesize = filepath.stat().st_size
-
-    caption = f"{filename} {get_size_str(filesize)}{(' (optimized)' if optimized else '')}"
+    filesize = info.video_path.stat().st_size
+    caption = f"{info.video_path.name} {get_size_str(filesize)}" + (f" ({result})" if result else "")
     if filesize > storage.video_max_size:
         # media = InputMediaVideo(media=server_url, caption=filename, supports_streaming=True)
         return await answer.edit_text(
             caption,
             link_preview_options=LinkPreviewOptions(
-                url=server_url,
+                url=info.server_url,
                 is_disabled=False,
                 prefer_large_media=True,
                 show_above_text=True
             ),
-            reply_markup=get_link_keyboard(server_url)
+            reply_markup=get_link_keyboard(info.server_url)
         )
     else:
-        video = FSInputFile(filepath, filename=filename)
+        video = FSInputFile(info.video_path, filename=info.video_path.name)
         media = InputMediaVideo(media=video, caption=caption)
-        return await answer.edit_media(media, reply_markup=get_link_keyboard(server_url))
+        return await answer.edit_media(media, reply_markup=get_link_keyboard(info.server_url))

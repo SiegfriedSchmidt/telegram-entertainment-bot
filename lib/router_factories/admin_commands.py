@@ -1,5 +1,6 @@
 import os
 from itertools import chain
+from pathlib import Path
 from aiogram import Router, types
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
@@ -112,10 +113,13 @@ def create_router():
         else:
             return await message.answer('There is no video to delete!')
 
-        filename = filename.split()[0]
+        filename = videos_folder_path / Path(filename.split()[0])
         try:
-            filesize = remove_file(videos_folder_path / filename)
-            await message.answer(f'Video {filename} - {round(filesize / 1024 / 1024, 1)} MB deleted.')
+            filesize_video = remove_file(filename)
+            filesize_info = remove_file(filename.with_suffix(".json"))
+            await message.answer(
+                f'Video {filename} - {get_size_str(filesize_video)} + {get_size_str(filesize_info)} deleted.'
+            )
         except FileNotFoundError:
             return await message.answer('Video not found!')
 

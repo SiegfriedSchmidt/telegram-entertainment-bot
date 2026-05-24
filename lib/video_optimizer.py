@@ -190,13 +190,13 @@ class VideoOptimizer:
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Error running ffmpeg command: {e}")
 
-    def process_download(self, tmp_path: Path | str, final_filename: str, info: dict | None) -> Tuple[Path, bool]:
+    def process_download(self, tmp_path: Path | str, final_path: Path | str, info: dict | None) -> bool:
         """
         Process downloaded video from temporary file to final optimized version.
 
         Args:
             tmp_path: Path to temporary video file (e.g., with .tmp.mp4 extension)
-            final_filename: Optional custom final filename (without extension)
+            final_path: Custom final path (without extension)
                            If not provided, will use sanitized version of tmp filename without .tmp
             info: Video info from ffprobe
 
@@ -210,7 +210,6 @@ class VideoOptimizer:
             raise FileNotFoundError(f"Temporary file not found: {tmp_path}")
 
         # Create final path with same extension
-        final_path = tmp_path.parent / final_filename
         optimized = False
 
         if info is None:
@@ -224,4 +223,4 @@ class VideoOptimizer:
                 main_logger.warning(e)
                 tmp_path.rename(final_path)
 
-        return final_path, optimized
+        return optimized
