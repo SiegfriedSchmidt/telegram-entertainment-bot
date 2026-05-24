@@ -60,6 +60,6 @@ def create_router():
     @router.message(F.text.regexp(VIDEO_LINK_REGEX))
     async def video_link_message(message: types.Message):
         link = get_video_link_from_text(message.text)
-        await download_video(message, link)
+        await download_video(message, link, constraint=True)
 
     return router

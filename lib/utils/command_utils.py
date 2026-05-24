@@ -9,20 +9,28 @@ from lib.utils.general_utils import get_size_str
 from lib.workers import workers
 
 
-async def download_video(message: types.Message, url: str):
-    answer = await message.reply("Downloading...")
+async def download_video(message: types.Message, url: str, constraint=False):
+    answer = await message.reply("Getting info...")
+    info = await workers.enqueue(downloader.prepare_info, url)  # type: VideoInfo
 
-    main_loop = asyncio.get_running_loop()
+    if constraint and info.duration > storage.video_max_duration:
+        return await answer.delete()
 
-    async def edit_text_wrapper(text: str):
-        await answer.edit_text(text)
+    if info.downloaded:
+        result = "cached"
+    else:
+        await answer.edit_text("Downloading...")
+        main_loop = asyncio.get_running_loop()
 
-    def callback(text: str):
-        asyncio.run_coroutine_threadsafe(edit_text_wrapper(text), main_loop)
+        async def edit_text_wrapper(text: str):
+            await answer.edit_text(text)
 
-    info, result = await workers.enqueue(downloader.download, url, callback)  # type: VideoInfo | None, str
-    if info is None:
-        return await answer.edit_text(f"Download failed: {result}")
+        def callback(text: str):
+            asyncio.run_coroutine_threadsafe(edit_text_wrapper(text), main_loop)
+
+        error, result = await workers.enqueue(downloader.download_video, info, callback)  # type: bool, str
+        if error:
+            return await answer.edit_text(f"Download failed: {result}")
 
     filesize = info.video_path.stat().st_size
     caption = f"{info.video_path.name} {get_size_str(filesize)}" + (f" ({result})" if result else "")

@@ -15,6 +15,7 @@ from lib.video_optimizer import VideoOptimizer
 @dataclass
 class VideoInfo:
     downloaded: bool
+    duration: int
     url: str
     info_path: Path
     tmp_path: Path
@@ -115,15 +116,14 @@ class Downloader:
             video_path = (tmp_path.parent / new_filename)
             info_path = video_path.with_suffix('.json')
             server_url = f"{config.server_video_url}/{video_path.name}" if config.server_video_url else ""
+            duration = int(info.get("duration", 0))
+            downloaded = video_path.is_file()
 
-            if video_path.is_file():
-                return VideoInfo(True, url, info_path, tmp_path, video_path, server_url)
-
-            if not info_path.exists():
+            if not downloaded and not info_path.exists():
                 with open(info_path, "w") as f:
                     json.dump(info, f, ensure_ascii=False, indent=2)
 
-        return VideoInfo(False, url, info_path, tmp_path, video_path, server_url)
+        return VideoInfo(downloaded, duration, url, info_path, tmp_path, video_path, server_url)
 
     def download_video(self, video_info: VideoInfo, callback: Callable[[str], None] = None) -> Tuple[bool, str]:
         try:

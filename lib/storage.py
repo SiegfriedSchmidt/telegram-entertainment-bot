@@ -27,6 +27,7 @@ class PersistentData:
     latest_github_commit_sha: str = ''
     optimize: bool = True
     video_max_size: int = 40 * 2 ** 20
+    video_max_duration: int = 180
     # admin_ids: List[int] = field(default_factory=list)
 
 
