@@ -1,6 +1,7 @@
 import re
 import unicodedata
 from pathlib import Path
+from typing import Callable
 
 VIDEO_LINK_REGEX = re.compile(
     r'.*?'
@@ -23,6 +24,14 @@ def is_valid_mac_address(mac: str) -> bool:
         r'^[0-9A-Fa-f]{2}\.[0-9A-Fa-f]{2}\.[0-9A-Fa-f]{2}\.[0-9A-Fa-f]{2}\.[0-9A-Fa-f]{2}\.[0-9A-Fa-f]{2}$',
     ]
     return any(re.match(pattern, mac) for pattern in patterns)
+
+
+def replace_latex_equations(text: str, replace_func: Callable[[str], str]) -> str:
+    def replace_math(match):
+        return replace_func(match.group(0))
+
+    processed = re.sub(r"\$\$(.+?)\$\$", replace_math, text, flags=re.DOTALL)
+    return re.sub(r"(?<!\\)\$(.+?)\$", replace_math, processed)
 
 
 def slugify_filename(filename: str, max_length=200) -> str:

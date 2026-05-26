@@ -34,7 +34,9 @@ from lib.storage import storage
 from lib.temporal_storage import UserProfile
 from lib.message_factories.get_leaderboard import get_leaderboard
 from lib.utils.general_utils import from_iso
-from lib.utils.message_utils import get_args, is_bot_admin, get_name_or_id_with_reply, large_respond, get_question
+from lib.utils.message_utils import get_args, is_bot_admin, get_name_or_id_with_reply, large_respond, get_question, \
+    latex_to_text, latex_img_link
+from lib.utils.regex_utils import replace_latex_equations
 from lib.workers import workers
 
 
@@ -98,7 +100,8 @@ def create_router():
         finally:
             await answer.delete()
 
-        return await large_respond(message, response)
+        processed = replace_latex_equations(response, latex_to_text)
+        return await large_respond(message, processed, parse_mode="MarkdownV2")
 
     @router.message(Command("ask_context"))
     async def ask_context_cmd(message: types.Message, command: CommandObject, user: UserProfile, provider: LLMProvider):
@@ -177,6 +180,15 @@ def create_router():
                                   user: UserProfile):
         user.llm.provider = callback_data.provider
         return await callback.answer(f'Provider has been switched to {user.llm.provider}!')
+
+    @router.message(Command("latex"))
+    async def latex_cmd(message: types.Message, command: CommandObject):
+        if not command.args:
+            return await message.reply("Specify an equation")
+        try:
+            return await message.answer_photo(latex_img_link(command.args))
+        except TelegramBadRequest:
+            return await message.reply("Invalid equation")
 
     @router.message(Command("geoip"))
     async def geoip_cmd(message: types.Message, command: CommandObject):

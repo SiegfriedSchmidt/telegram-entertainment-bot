@@ -12,6 +12,7 @@ bot_general_commands = [
     BotCommand(command='change_llm_model', description='{model:required} - change llm model'),
     BotCommand(command='switch_llm_provider', description='switch llm provider'),
     BotCommand(command='change_llm_key', description='{api_key:required} - change llm api key'),
+    BotCommand(command='latex', description='{equation:required} - render latex equation'),
     BotCommand(command='geoip', description='{ip:required} - get geoip'),
     BotCommand(command='gamble', description='{bet: optional} some gambling'),
     BotCommand(command='galton', description='{bet: optional, balls: optional} galton board'),
