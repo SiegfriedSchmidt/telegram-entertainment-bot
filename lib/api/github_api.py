@@ -3,11 +3,9 @@ import aiohttp
 from dataclasses import dataclass
 from typing import Optional, Dict, List, Any, Tuple
 from lib.logger import main_logger
-from lib.storage import storage
+from lib.config_reader import config
 
-REPO_OWNER = "SiegfriedSchmidt"
-REPO_NAME = "telegram-entertainment-bot"
-url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/commits"
+url = f"https://api.github.com/repos/{config.git_repo}/commits"
 
 
 @dataclass
@@ -45,13 +43,13 @@ def get_commit_obj(commit: dict) -> Commit:
     return Commit(sha=commit["sha"], message=message)
 
 
-def prepare_latest_commits(commits: List[Dict[str, Any]]) -> List[Commit]:
+def prepare_latest_commits(commits: List[Dict[str, Any]], latest_hash="") -> List[Commit]:
     prepared_commits: List[Commit] = []
     found = False
     for commit in reversed(commits):
         if found:
             prepared_commits.append(get_commit_obj(commit))
-        elif commit.get("sha", "") == storage.latest_github_commit_sha:
+        elif commit.get("sha", "") == latest_hash:
             found = True
 
     if not found:
@@ -60,9 +58,9 @@ def prepare_latest_commits(commits: List[Dict[str, Any]]) -> List[Commit]:
     return list(reversed(prepared_commits))
 
 
-async def get_commits_message() -> Tuple[Optional[List[str]], str]:
+async def get_commits_message(latest_hash="") -> Tuple[Optional[List[str]], str]:
     raw_commits = await get_commits()
-    commits = prepare_latest_commits(raw_commits)
+    commits = prepare_latest_commits(raw_commits, latest_hash)
     if len(commits) == 0:
         return None, raw_commits[0].get("sha", "")
 

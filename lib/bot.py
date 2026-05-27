@@ -99,7 +99,7 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger) -> N
 
     # show latest update
     try:
-        update_lines, latest_sha = await get_commits_message()
+        update_lines, latest_sha = await get_commits_message(storage.latest_github_commit_sha)
         if update_lines is not None:
             start_message += "\n\n" + "\n".join(update_lines)
         storage.latest_github_commit_sha = latest_sha
@@ -148,7 +148,6 @@ async def main():
     await set_bot_commands(bot)
 
     # init shared classes
-    # TODO: shared class union, change name for api keys, move gemini api
     scheduler = AsyncIOScheduler()
     ledger = Ledger(storage.mine_block_reward)
     providers = LLMProviders(config.providers_credentials)

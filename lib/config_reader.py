@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     proxy_url: str = ''
     day_start_time: str = '11:00'
     llm_system_message: str = ''
+    git_repo: str = 'siegfriedschmidt/telegram-entertainment-bot'
 
     @classmethod
     def settings_customise_sources(
