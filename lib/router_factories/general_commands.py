@@ -203,7 +203,7 @@ def create_router():
 
     @router.message(Command("niggachain"))
     async def chain_cmd(message: types.Message):
-        return await message.answer('https://www.youtube-nocookie.com/embed/8V1eO0Ztuis')
+        return await message.answer('https://youtu.be/8V1eO0Ztuis')
 
     @router.message(Command("gamble"))
     async def gamble_cmd(message: types.Message, command: CommandObject, ledger: Ledger, user: UserProfile):
