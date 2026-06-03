@@ -78,7 +78,10 @@ class Downloader:
                 "key": "FFmpegVideoConvertor",
                 "preferedformat": "mp4",
             }],
-            "outtmpl": str(self.output_dir / f"{self.tmp_prefix}%(title)s.%(ext)s"),
+            "outtmpl": str(
+                self.output_dir /
+                f"{self.tmp_prefix}%(title)s_%(id)s_%(duration_string)s_%(upload_date>%Y-%m-%d)s_%(view_count,like_count)s.%(ext)s"
+            ),
             "restrictfilenames": False,
             "windowsfilenames": False,
             "noplaylist": True,  # Only download single videos by default,

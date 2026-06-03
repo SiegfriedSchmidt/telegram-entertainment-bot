@@ -42,7 +42,7 @@ async def inline_handler(inline_query: InlineQuery):
             input_message_content=InputTextMessageContent(
                 message_text=info.server_url,
                 link_preview_options=LinkPreviewOptions(
-                    url=info.server_url,
+                    url=info.server_url + f" ({url})",
                     is_disabled=False,
                     prefer_large_media=True,
                     show_above_text=True
