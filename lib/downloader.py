@@ -16,6 +16,7 @@ from lib.video_optimizer import VideoOptimizer
 class VideoInfo:
     downloaded: bool
     duration: int
+    view_count: int
     url: str
     info_path: Path
     tmp_path: Path
@@ -80,7 +81,8 @@ class Downloader:
             }],
             "outtmpl": str(
                 self.output_dir /
-                f"{self.tmp_prefix}%(title)s_%(id)s_%(duration_string)s_%(upload_date>%Y-%m-%d)s_%(view_count,like_count)s.%(ext)s"
+                f"{self.tmp_prefix}%(title)s_%(id)s_%(duration_string)s_%(upload_date>%Y-%m-%d)s.%(ext)s"
+                # %(view_count,like_count)s
             ),
             "restrictfilenames": False,
             "windowsfilenames": False,
@@ -120,13 +122,15 @@ class Downloader:
             info_path = video_path.with_suffix('.json')
             server_url = f"{config.server_video_url}/{video_path.name}" if config.server_video_url else ""
             duration = int(info.get("duration", 0))
+            # noinspection PyTypedDict
+            view_count = int(info.get("view_count", info.get("like_count", 0)))
             downloaded = video_path.is_file()
 
             if not downloaded and not info_path.exists():
                 with open(info_path, "w") as f:
                     json.dump(info, f, ensure_ascii=False, indent=2)
 
-        return VideoInfo(downloaded, duration, url, info_path, tmp_path, video_path, server_url)
+        return VideoInfo(downloaded, duration, view_count, url, info_path, tmp_path, video_path, server_url)
 
     def download_video(self, video_info: VideoInfo, callback: Callable[[str], None] = None) -> Tuple[bool, str]:
         try:

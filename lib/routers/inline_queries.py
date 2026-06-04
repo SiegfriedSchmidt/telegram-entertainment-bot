@@ -40,9 +40,9 @@ async def inline_handler(inline_query: InlineQuery):
             description="Click to open video",
             # thumbnail_url="https://picsum.photos/200",
             input_message_content=InputTextMessageContent(
-                message_text=info.server_url,
+                message_text=info.server_url + f"\n\n({url})",
                 link_preview_options=LinkPreviewOptions(
-                    url=info.server_url + f" ({url})",
+                    url=info.server_url,
                     is_disabled=False,
                     prefer_large_media=True,
                     show_above_text=True

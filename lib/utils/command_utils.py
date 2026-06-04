@@ -33,7 +33,7 @@ async def download_video(message: types.Message, url: str, constraint=False):
             return await answer.edit_text(f"Download failed: {result}")
 
     filesize = info.video_path.stat().st_size
-    caption = f"{info.video_path.name} {get_size_str(filesize)}" + (f" ({result})" if result else "")
+    caption = f"{info.video_path.name} {get_size_str(filesize)} {info.view_count}" + (f" ({result})" if result else "")
     if filesize > storage.video_max_size:
         # media = InputMediaVideo(media=server_url, caption=filename, supports_streaming=True)
         return await answer.edit_text(
