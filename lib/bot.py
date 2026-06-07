@@ -1,5 +1,4 @@
 import asyncio
-import nest_asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
@@ -23,8 +22,6 @@ from lib.storage import storage
 from lib.api.github_api import get_commits_message
 from lib.message_factories.get_leaderboard import get_leaderboard
 from lib.utils.general_utils import clear_dir_contents
-
-nest_asyncio.apply()
 
 
 async def notification(message: str, bot: Bot, parse_mode=None):

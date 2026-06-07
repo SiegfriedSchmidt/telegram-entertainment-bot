@@ -74,6 +74,8 @@ class StateManager:
         return FreezeHandle(self, user_id, amount)
 
     def release_handle(self, handle: FreezeHandle) -> None:
+        if handle.amount <= 0:
+            return
         self.__balances[handle.user_id] = self.get_user_balance(handle.user_id) + handle.amount
 
     @contextmanager

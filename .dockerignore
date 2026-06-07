@@ -24,3 +24,7 @@ cert
 .secrets
 *.pyc
 data
+*.pyo
+.vscode
+dist
+build

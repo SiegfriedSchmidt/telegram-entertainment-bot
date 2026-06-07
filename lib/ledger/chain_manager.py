@@ -187,8 +187,10 @@ class ChainManager:
 
     @staticmethod
     def create_block(miner: User, merkle_root: str, height: int, prev_hash: str, diff: str,
-                     base_reward: int, total_fees: int, nonce: int = None, timestamp: str = None) -> Block:
-        if timestamp is None:
+                     base_reward: int, total_fees: int, nonce: int = None, timestamp: str | datetime = None) -> Block:
+        if isinstance(timestamp, datetime):
+            timestamp = timestamp.isoformat()
+        elif timestamp is None:
             timestamp = datetime.now().isoformat()
 
         block_data = dict()

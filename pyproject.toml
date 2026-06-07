@@ -1,0 +1,25 @@
+[project]
+name = "telegram-entertainment-bot"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.14"
+dependencies = [
+    "aiogram>=3.28.2",
+    "aiohttp-socks>=0.11.0",
+    "apscheduler>=3.11.2",
+    "colorama>=0.4.6",
+    "google-genai>=2.8.0",
+    "matplotlib>=3.10.9",
+    "md2tgmd>=0.3.10",
+    "openai>=2.41.0",
+    "opencv-python>=4.13.0.92",
+    "peewee>=4.0.6",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.1",
+    "pymunk>=7.2.0",
+    "pyotp>=2.9.0",
+    "sympy>=1.14.0",
+    "unicodeit>=0.7.5",
+    "yt-dlp>=2026.3.17",
+    "yt-dlp-ejs>=0.8.0",
+]
