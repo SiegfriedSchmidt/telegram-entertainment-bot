@@ -16,11 +16,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
 COPY pyproject.toml uv.lock ./
-
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-editable
+    uv sync --frozen --no-editable --no-dev
 
 COPY . .
 
@@ -52,13 +50,7 @@ COPY --from=builder /app/libcpp /app/libcpp
 COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
 
 RUN addgroup --gid 1001 --system app && \
-    adduser \
-        --uid 1001 \
-        --system \
-        --group \
-        --home /home/app \
-        --shell /bin/bash \
-        app && \
+    adduser --uid 1001 --system --group --home /home/app --shell /bin/bash app && \
     mkdir -p /home/app/.config/matplotlib && \
     chown -R app:app /home/app /app
 

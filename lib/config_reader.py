@@ -12,7 +12,6 @@ class Settings(BaseSettings):
     notification_ids: Dict[str, int]
     providers_credentials: Dict[str, SecretStr]
     bot_token: SecretStr
-    otp_secret: SecretStr
     server_video_url: str = ''
     proxy_url: str = ''
     day_start_time: str = '11:00'

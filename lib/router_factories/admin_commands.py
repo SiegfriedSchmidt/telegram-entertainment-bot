@@ -10,7 +10,6 @@ from lib.downloader import downloader
 from lib.init import data_folder_path, videos_folder_path, cookies_file_path
 from lib.logger import log_stream
 from lib.middlewares.user_middleware import UserMiddleware
-from lib.otp_manager import otp_manager, OTP_ACCESS_GRANTED_HOURS
 from lib.states.confirmation_state import ConfirmationState
 from lib.utils.command_utils import download_video
 from lib.utils.general_utils import get_dir_size, clear_dir_contents, remove_file, get_size_str
@@ -60,14 +59,6 @@ def create_router():
     async def logs_cmd(message: types.Message):
         file = BufferedInputFile(log_stream.get_file().read(), filename="logs.txt")
         return await message.answer_document(file)
-
-    @router.message(Command("access"))
-    async def access_cmd(message: types.Message, command: CommandObject):
-        args = get_args(command, 1, 1)
-        result = otp_manager.authenticate(message.from_user.id, args[0])
-        if result:
-            return await message.answer(result)
-        return await message.answer(f'Access granted for {OTP_ACCESS_GRANTED_HOURS} hours.')
 
     @router.message(Command("download"))
     async def download_cmd(message: types.Message, command: CommandObject):

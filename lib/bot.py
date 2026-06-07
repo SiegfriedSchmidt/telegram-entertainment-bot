@@ -16,7 +16,6 @@ from lib.init import tmp_folder_path, bot_version
 from lib.ledger.ledger import Ledger, LedgerError
 from lib.routers import public_commands, errors, group_admin, group_general, private_admin, inline_queries
 from lib.logger import main_logger
-from lib.middlewares.access_middleware import AccessMiddleware
 from lib.middlewares.logger_middleware import LoggerMiddleware
 from lib.storage import storage
 from lib.api.github_api import get_commits_message
@@ -129,7 +128,6 @@ async def main():
 
     # middlewares
     dp.message.middleware(LoggerMiddleware())
-    dp.message.middleware(AccessMiddleware())
 
     # routers
     dp.include_routers(

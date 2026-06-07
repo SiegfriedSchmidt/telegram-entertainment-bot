@@ -40,7 +40,6 @@ bot_admin_commands = [
     BotCommand(command='faq', description='get faq file'),
     BotCommand(command='logs', description='get logs'),
     BotCommand(command='clear_videos', description='clear downloaded videos'),
-    BotCommand(command='access', description='{otp_code:required} get privileged access'),
     BotCommand(
         command='download',
         description='{url:optional} - download video, if url not provided, you should reply to message containing url'
