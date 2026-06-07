@@ -24,7 +24,6 @@ from lib.ledger.ledger import Ledger
 from lib.ledger.chain_manager import BlockNotMined
 from lib.api.joke_api import get_joke
 from lib.api.meme_api import get_meme
-from lib.api.geoip_api import geoip
 from lib.middlewares.user_middleware import UserMiddleware
 from lib.gambling.physics_simulation import PhysicsSimulation
 from lib.gambling.roulette import render_roulette
@@ -189,17 +188,6 @@ def create_router():
             return await message.answer_photo(latex_img_link(command.args))
         except TelegramBadRequest:
             return await message.reply("Invalid equation")
-
-    @router.message(Command("geoip"))
-    async def geoip_cmd(message: types.Message, command: CommandObject):
-        args = get_args(command, 1, 1)
-
-        try:
-            json = await geoip(args[0])
-            text = '\n'.join(f"{key}: {val}" for key, val in json.items())
-        except Exception as e:
-            return await message.answer(str(e))
-        return await message.answer(text)
 
     @router.message(Command("niggachain"))
     async def chain_cmd(message: types.Message):
