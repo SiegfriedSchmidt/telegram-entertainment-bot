@@ -121,9 +121,9 @@ class Downloader:
             video_path = (tmp_path.parent / new_filename)
             info_path = video_path.with_suffix('.json')
             server_url = f"{config.server_video_url}/{video_path.name}" if config.server_video_url else ""
-            duration = int(info.get("duration", 0))
+            duration = int(info.get("duration", 0) or -1)
             # noinspection PyTypedDict
-            view_count = int(info.get("view_count", info.get("like_count", 0)))
+            view_count = int(info.get("view_count", info.get("like_count", 0)) or -1)
             downloaded = video_path.is_file()
 
             if not downloaded and not info_path.exists():
