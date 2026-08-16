@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-bot_version = '1.0v alpha'
+bot_version = '1.0.1v alpha'
 
 secret_folder_path = Path(os.environ.get("SECRET_FOLDER_PATH", "./.secret"))
 data_folder_path = Path(os.environ.get("DATA_FOLDER_PATH", "./data"))
@@ -27,7 +27,7 @@ persistent_file_path = data_folder_path / "persistent_data.json"
 database_file_path = data_folder_path / "database.sqlite"
 cookies_file_path = data_folder_path / "cookies.txt"
 
-videos_folder_path = data_folder_path / "videos"
+videos_folder_path = Path(os.environ.get("VIDEOS_FOLDER_PATH", data_folder_path / "videos"))
 videos_folder_path.mkdir(exist_ok=True)
 
 galton_backgrounds_folder_path = data_folder_path / "galton_backgrounds"

@@ -5,7 +5,8 @@ services:
     image: siegfriedschmidt/telegram-entertainment-bot
     container_name: telegram-entertainment-bot
     environment:
-      - TZ=Europe/Moscow
+      - TZ=Etc/GMT-3
+#      - VIDEOS_FOLDER_PATH=/mnt/data/videos
     volumes:
       - ./secret:/app/secret
       - ./data:/app/data
