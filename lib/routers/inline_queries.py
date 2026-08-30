@@ -33,6 +33,24 @@ async def inline_handler(inline_query: InlineQuery):
     main_loop = asyncio.get_running_loop()
     asyncio.run_coroutine_threadsafe(workers.enqueue(downloader.download_video, info), main_loop)
 
+    preview_url = info.url
+
+    if "instagram.com" in preview_url:
+        preview_url = (
+            preview_url
+            .replace("www.instagram.com", "kkinstagram.com")
+            .replace("instagram.com", "kkinstagram.com")
+        )
+    elif "youtube.com" in preview_url or "youtu.be" in preview_url:
+        preview_url = (
+            preview_url
+            .replace("www.youtube.com", "koutube.com")
+            .replace("youtube.com", "koutube.com")
+            .replace("youtu.be", "koutu.be")
+        )
+    else:
+        preview_url = None
+
     results = [
         InlineQueryResultArticle(
             id="1",
@@ -42,7 +60,7 @@ async def inline_handler(inline_query: InlineQuery):
             input_message_content=InputTextMessageContent(
                 message_text=info.server_url + f"\n\n({url})",
                 link_preview_options=LinkPreviewOptions(
-                    url=info.server_url,
+                    url=preview_url,
                     is_disabled=False,
                     prefer_large_media=True,
                     show_above_text=True
