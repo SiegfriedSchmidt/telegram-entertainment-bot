@@ -1,0 +1,3 @@
+services:
+  telegram-entertainment-bot:
+    image: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_SLUG}

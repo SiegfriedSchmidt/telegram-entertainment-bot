@@ -1,16 +1,15 @@
 services:
-  tg-ssh-bot:
+  telegram-entertainment-bot:
     platform: linux/amd64
     build: .
     image: siegfriedschmidt/telegram-entertainment-bot
     container_name: telegram-entertainment-bot
     environment:
       - TZ=Etc/GMT-3
-#      - VIDEOS_FOLDER_PATH=/mnt/data/videos
+    #      - VIDEOS_FOLDER_PATH=/mnt/data/videos
     volumes:
       - ./secret:/app/secret
       - ./data:/app/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-    restart: "no"
+    restart: unless-stopped

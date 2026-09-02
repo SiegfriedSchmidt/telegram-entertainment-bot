@@ -1,0 +1,36 @@
+stages:
+  - build
+
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
+  GIT_SUBMODULE_STRATEGY: recursive
+
+default:
+  image: docker:24.0.5
+  services:
+    - name: docker:24.0.5-dind
+  tags:
+    - docker
+
+build-and-push:
+  stage: build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - "docker-compose*.yml"
+        - "Dockerfile*"
+        - "lib/**/*"
+        - "libcpp/**/*"
+        - "assets/**/*"
+        - "uv.lock"
+        - "pyproject.toml"
+        - ".gitlab-ci.yml"
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - docker compose -f docker-compose.yml -f docker-compose.ci.yml build
+    - docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    - docker compose -f docker-compose.yml -f docker-compose.ci.yml push
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
