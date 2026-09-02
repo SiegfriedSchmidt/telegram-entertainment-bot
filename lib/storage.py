@@ -28,6 +28,8 @@ class PersistentData:
     optimize: bool = True
     video_max_size: int = 40 * 2 ** 20
     video_max_duration: int = 180
+    max_galton_balls: int = 1000
+    min_galton_bet_per_ball: int = 100
     # admin_ids: List[int] = field(default_factory=list)
 
 

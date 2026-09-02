@@ -23,10 +23,10 @@ class GaltonGame(BaseGame):
                 f"The limit of concurrent galtons exceeded! Only {storage.galton_max_concurrent_per_user} concurrent galtons allowed."
             )
 
-        if self.user_balls < 1 or self.user_balls > 750:
-            return await message.reply("Amount of balls should be between 1 and 750!")
+        if not (1 <= self.user_balls <= storage.max_galton_balls):
+            return await message.reply(f"Amount of balls should be between 1 and {storage.max_galton_balls}!")
 
-        if self.user_bet / self.user_balls < 100:
+        if self.user_bet / self.user_balls < storage.min_galton_bet_per_ball:
             return await message.reply("Bet per ball should be >= 100!")
 
         galton_msg = await message.reply(f"Waiting for simulation results /galton {self.gamble_bet} {self.user_balls}")
