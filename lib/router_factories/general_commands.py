@@ -217,7 +217,7 @@ def create_router():
         game_message = await message.reply_photo(
             image,
             caption=f"Blackjack, bet: <b>{bet}</b>.",
-            reply_markup=get_blackjack_keyboard(user.id),
+            reply_markup=get_blackjack_keyboard(user.id, blackjack.get_available_actions()),
             parse_mode="HTML"
         )
 

@@ -11,7 +11,8 @@ class BaseGame(ABC):
     def __init__(self, ledger: Ledger, user: UserProfile, user_bet: MONEY_TYPE):
         self.ledger = ledger
         self.user = user
-        self.user_bet, self.gamble_bet, self.handle = self.process_bet(user_bet)
+        self.user_bet, self.gamble_bet, handle = self.process_bet(user_bet)
+        self.handles: list[FreezeHandle] = [handle]
 
     def process_bet(self, raw_bet: MONEY_TYPE) -> tuple[int, int, FreezeHandle]:
         if raw_bet == "allin":
@@ -26,6 +27,14 @@ class BaseGame(ABC):
 
         return bet, self.ledger.calc_fee(bet)[0], self.ledger.freeze(self.user.id, bet)
 
+    def add_bet(self, raw_bet: MONEY_TYPE) -> int:
+        """Freeze an extra bet (double/split) and fold it into the running totals. Returns its fee-adjusted amount."""
+        user_bet, gamble_bet, handle = self.process_bet(raw_bet)
+        self.user_bet += user_bet
+        self.gamble_bet += gamble_bet
+        self.handles.append(handle)
+        return gamble_bet
+
     def get_balance_str(self) -> str:
         return f'{self.user}: {self.ledger.get_user_balance(self.user.id)} coins.'
 
@@ -37,14 +46,16 @@ class BaseGame(ABC):
         try:
             await self.play(*args, **kwargs)
         finally:
-            self.handle.release()
+            for handle in self.handles:
+                handle.release()
 
     def finish_game(self, game_name: str, multiplier: float = None, raw_win_amount: int = None) -> None:
-        self.handle.release()
+        for handle in self.handles:
+            handle.release()
         if raw_win_amount is None and multiplier is None:
             raise RuntimeError("Win amount and multiplier cannot be None at the same time!")
 
-        win_amount = raw_win_amount if raw_win_amount else int(multiplier * self.gamble_bet)
+        win_amount = raw_win_amount if raw_win_amount is not None else int(multiplier * self.gamble_bet)
         net = win_amount - self.gamble_bet
         description = f"{game_name}" + (f" {multiplier}X" if multiplier is not None else "")
 

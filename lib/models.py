@@ -39,6 +39,7 @@ class UserModel(BaseModel):
 
 class BlackjackResultType(str, BaseEnum):
     win = 'win'
+    blackjack = 'blackjack'
     draw = 'draw'
     lose = 'lose'
     bust = 'bust'
