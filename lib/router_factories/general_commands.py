@@ -12,6 +12,7 @@ from lib.LLM.llm_providers import LLMProviders
 from lib.LLM.base import LLMProvider
 from lib.callbacks.switch_provider_callback import SwitchProviderCallback
 from lib.gambling.games.DailySlotGame import DailySlotGame
+from lib.gambling.games.RouletteGame import RouletteGame, open_table
 from lib.gambling.games.SlotGame import SlotGame
 from lib.gambling.games.GaltonGame import GaltonGame
 from lib.gambling.games.BlackjackGame import BlackjackGame
@@ -19,6 +20,7 @@ from lib.bot_commands import text_bot_general_commands, text_bot_admin_commands
 from lib.config_reader import config
 from lib.init import galton_backgrounds_folder_path
 from lib.keyboards.blackjack_keyboard import get_blackjack_keyboard
+from lib.keyboards.roulette_keyboard import get_roulette_keyboard
 from lib.keyboards.switch_provider_keyboard import get_switch_provider_keyboard
 from lib.ledger.ledger import Ledger
 from lib.ledger.chain_manager import BlockNotMined
@@ -29,6 +31,7 @@ from lib.gambling.physics_simulation import PhysicsSimulation
 from lib.gambling.roulette import render_roulette
 from lib.states.blackjack_state import BlackjackState
 from lib.states.confirmation_state import ConfirmationState
+from lib.states.roulette_state import RouletteState
 from lib.storage import storage
 from lib.temporal_storage import UserProfile
 from lib.message_factories.get_leaderboard import get_leaderboard
@@ -225,16 +228,19 @@ def create_router():
         return await state.set_data({"blackjack": blackjack, "game_message": game_message})
 
     @router.message(Command("roulette"))
-    async def roulette_cmd(message: types.Message):
-        roulette_msg = await message.reply("Start roulette...")
-        filename, duration, win_number = await workers.enqueue(render_roulette)
+    async def roulette_cmd(message: types.Message, command: CommandObject, state: FSMContext,
+                           user: UserProfile, ledger: Ledger):
+        args = command.args.split() if command.args else []
+        chip = args[0] if args else user.roulette_bet
 
-        animation = FSInputFile(filename, filename=str(filename))
-        media = InputMediaAnimation(media=animation, caption=None)
-        await roulette_msg.edit_media(media)
-
-        await asyncio.sleep(duration)
-        await roulette_msg.edit_caption(caption=f"Win number: {win_number}!")
+        table = open_table(message.chat.id, ledger, user, chip)
+        await message.reply_photo(
+            FSInputFile(table.table_image(), filename="roulette.png"),
+            caption=table.get_betting_caption(),
+            reply_markup=get_roulette_keyboard(table.host.id),
+            parse_mode="HTML"
+        )
+        return await state.set_state(RouletteState.roulette_activated)
 
     @router.message(Command("balance"))
     async def balance_cmd(message: types.Message, ledger: Ledger, user: UserProfile):

@@ -21,6 +21,7 @@ class TemporalStorage:
             nonce=random.randint(1, 1000),
             slot_bet=100,
             blackjack_bet=100,
+            roulette_bet=100,
             galton_bet=100,
             galton_balls=1,
             galton_running_count=0,

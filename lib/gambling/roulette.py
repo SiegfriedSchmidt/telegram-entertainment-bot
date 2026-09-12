@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from dataclasses import dataclass
 from lib.init import tmp_folder_path, roulette_assets_folder_path, blackjack_assets_folder_path
 from lib.utils.cv2_utils import cv2_paste_with_alpha, OpencvCustomWriter
 
@@ -28,6 +29,100 @@ WHITE = (255, 255, 255, 255)
 GOLDEN = (0, 215, 255, 255)
 TEXT_COLOR = (255, 255, 255, 255)
 OUTLINE_COLOR = (0, 0, 0, 255)
+
+# ----------------------------------------------------------------------------- what can be bet on
+RED_NUMBERS = frozenset({1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36})
+BLACK_NUMBERS = frozenset(range(1, 37)) - RED_NUMBERS
+ODD_NUMBERS = frozenset(range(1, 37, 2))
+EVEN_NUMBERS = frozenset(range(2, 37, 2))
+LOW_NUMBERS = frozenset(range(1, 19))
+HIGH_NUMBERS = frozenset(range(19, 37))
+
+STRAIGHT_PAYOUT = 36  # 35:1
+EVEN_MONEY_PAYOUT = 2  # 1:1
+THIRD_PAYOUT = 3  # 2:1
+
+
+@dataclass(frozen=True)
+class Spot:
+    """A place on the table: the numbers it covers, what a win pays, and where its chips go."""
+    name: str
+    numbers: frozenset
+    payout: int
+    center: tuple[int, int]  # in table.png coordinates
+
+
+# table.png geometry: the number grid starts at (63, 51) and its cells are 45x64,
+# dozens sit above it, the even-money bets below it, the "2 to 1" columns to its right
+CELL_W, CELL_H = 45, 64
+GRID_X, GRID_Y = 63, 51
+TABLE_W, TABLE_H = 655, 296
+ZERO_CENTER = (31, 147)
+DOZEN_Y = GRID_Y // 2
+OUTSIDE_Y = (GRID_Y + 3 * CELL_H + TABLE_H) // 2
+COLUMN_X = GRID_X + 12 * CELL_W + (TABLE_W - GRID_X - 12 * CELL_W) // 2
+CHIP_RADIUS = 17
+STACK_STEP = 10  # how far apart the chips of two players on the same spot sit
+
+
+def number_center(number: int) -> tuple[int, int]:
+    """Cell centre of a number. Rows top to bottom are the 3rd, 2nd and 1st column of the table."""
+    if number == 0:
+        return ZERO_CENTER
+    row, col = 2 - (number - 1) % 3, (number - 1) // 3
+    return GRID_X + col * CELL_W + CELL_W // 2, GRID_Y + row * CELL_H + CELL_H // 2
+
+
+def dozen_center(index: int) -> tuple[int, int]:
+    return GRID_X + (4 * index + 2) * CELL_W, DOZEN_Y
+
+
+def outside_center(index: int) -> tuple[int, int]:
+    """Even-money bets, two number cells wide each: 1-18, EVEN, black, RED, ODD, 19-36."""
+    return GRID_X + (2 * index + 1) * CELL_W, OUTSIDE_Y
+
+
+def column_center(column: int) -> tuple[int, int]:
+    return COLUMN_X, GRID_Y + (3 - column) * CELL_H + CELL_H // 2
+
+
+def _spots() -> dict[str, Spot]:
+    spots = {str(number): Spot(str(number), frozenset({number}), STRAIGHT_PAYOUT, number_center(number))
+             for number in ROULETTE_NUMBERS}
+
+    even_money = {
+        "1-18": (LOW_NUMBERS, 0), "even": (EVEN_NUMBERS, 1), "black": (BLACK_NUMBERS, 2),
+        "red": (RED_NUMBERS, 3), "odd": (ODD_NUMBERS, 4), "19-36": (HIGH_NUMBERS, 5),
+    }
+    thirds = {
+        "1st12": (frozenset(range(1, 13)), dozen_center(0)),
+        "2nd12": (frozenset(range(13, 25)), dozen_center(1)),
+        "3rd12": (frozenset(range(25, 37)), dozen_center(2)),
+        "col1": (frozenset(range(1, 37, 3)), column_center(1)),
+        "col2": (frozenset(range(2, 37, 3)), column_center(2)),
+        "col3": (frozenset(range(3, 37, 3)), column_center(3)),
+    }
+
+    for name, (numbers, index) in even_money.items():
+        spots[name] = Spot(name, numbers, EVEN_MONEY_PAYOUT, outside_center(index))
+    for name, (numbers, center) in thirds.items():
+        spots[name] = Spot(name, numbers, THIRD_PAYOUT, center)
+    return spots
+
+
+SPOTS: dict[str, Spot] = _spots()
+NUMBER_SPOTS = [str(number) for number in ROULETTE_NUMBERS]
+
+
+def describe_number(number: int) -> str:
+    if number == 0:
+        return "zero"
+    colour = "red" if number in RED_NUMBERS else "black"
+    return f"{colour} {'odd' if number % 2 else 'even'} {'1-18' if number < 19 else '19-36'}"
+
+
+def short_amount(amount: int) -> str:
+    return f"{amount // 1000}k" if amount >= 1000 and amount % 1000 == 0 else str(amount)
 
 
 def put_rotated_text(image, text, position, angle, color=(255, 255, 255)):
@@ -200,20 +295,62 @@ table_size = table.shape[:2]
 table_pad_x = (WIDTH - table_size[1]) // 2
 table_pad_y = wheel_size[0] + wheel_pad_y + (HEIGHT - table_size[0] - wheel_pad_y - wheel_size[0]) // 2
 
-cv2_paste_with_alpha(background, table, (table_pad_x, table_pad_y))
+# one colour per player, so a shared table can tell the chips — and the caption lines — apart
+PLAYER_COLOURS = [(80, 80, 235), (80, 190, 120), (235, 195, 80), (200, 100, 200), (90, 195, 225), (235, 135, 90)]
+PLAYER_DOTS = ["🟥", "🟩", "🟨", "🟪", "🟦", "🟧"]
 
 
-def render_roulette() -> tuple[str, float, int]:
+def player_colour(index: int) -> tuple[int, int, int, int]:
+    return PLAYER_COLOURS[index % len(PLAYER_COLOURS)] + (255,)
+
+
+def player_dot(index: int) -> str:
+    return PLAYER_DOTS[index % len(PLAYER_DOTS)]
+
+
+def draw_chip(frame: np.ndarray, center: tuple[int, int], amount: int, colour=GOLDEN) -> None:
+    """A chip with the stake on it, dropped on the cell that is bet on."""
+    x, y = center[0] + table_pad_x, center[1] + table_pad_y
+    cv2.circle(frame, (x, y), CHIP_RADIUS, colour, -1)
+    cv2.circle(frame, (x, y), CHIP_RADIUS, WHITE, 2)
+    put_rotated_text(frame, short_amount(amount), (x, y + 5), 0, BLACK)
+
+
+def render_table(chips: list[tuple[str, int, tuple]] = ()) -> np.ndarray:
+    """The betting table with a chip on every covered spot.
+
+    `chips` are `(spot name, amount, colour)`. Chips of several players on the same spot are spread
+    along a short diagonal across the cell, so that every one of them stays visible.
+    """
+    frame = background.copy()
+    cv2_paste_with_alpha(frame, table, (table_pad_x, table_pad_y))
+
+    stack: dict[str, int] = {name: sum(1 for chip in chips if chip[0] == name) for name, _, _ in chips}
+    drawn: dict[str, int] = {}
+    for name, amount, colour in chips:
+        index = drawn.get(name, 0)
+        drawn[name] = index + 1
+        shift = int((index - (stack[name] - 1) / 2) * STACK_STEP)
+        x, y = SPOTS[name].center
+        draw_chip(frame, (x + shift, y - shift), amount, colour)
+
+    return frame
+
+
+def render_roulette(winning_number: int = None, chips: list[tuple[str, int, tuple]] = (),
+                    total_seconds: float = None) -> tuple[str, float, int]:
     fps = 30
-    total_seconds = np.random.uniform(8.0, 12.0)
+    total_seconds = float(total_seconds if total_seconds is not None else np.random.uniform(8.0, 12.0))
+    if winning_number is None:
+        winning_number = int(np.random.choice(ROULETTE_NUMBERS))
     filename = tmp_folder_path / f'roulette_{np.random.randint(0, 1 << 31)}.mp4'
 
-    winning_number = np.random.choice(ROULETTE_NUMBERS)
     angles = generate_roulette_angles(winning_number, total_seconds, fps)
+    table_frame = render_table(chips)
 
     with OpencvCustomWriter(fps, WIDTH, HEIGHT, filename) as writer:
         for wheel_angle, ball_angle in angles:
-            img = background.copy()
+            img = table_frame.copy()
             rotation_matrix = cv2.getRotationMatrix2D(wheel_center, -wheel_angle, 1)
             wheel = cv2.warpAffine(wheel_original, rotation_matrix, wheel_size, cv2.INTER_LINEAR)
             draw_ball(wheel, wheel_center, int(wheel_center[0] * 0.75) + 2, ball_angle)

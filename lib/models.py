@@ -32,6 +32,7 @@ class UserModel(BaseModel):
     slot_bet: int
     galton_bet: int
     blackjack_bet: int
+    roulette_bet: int
     galton_balls: int
     galton_running_count: int
     llm: LLMVariablesModel
