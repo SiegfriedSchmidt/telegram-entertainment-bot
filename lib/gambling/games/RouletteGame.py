@@ -159,7 +159,7 @@ class RouletteTable:
         return [(bet.spot.name, bet.amount, self.seats[bet.user.id].colour) for bet in self.bets]
 
     def table_image(self) -> str:
-        image = render_table(self.chips_on_table())
+        image = render_table(self.chips_on_table(), wheel=True)
         filename = tmp_folder_path / f"roulette_{random.randint(0, 1 << 31)}.png"
         cv2.imwrite(filename, image)
         return filename
@@ -184,6 +184,8 @@ def open_table(chat_id: int, ledger: Ledger, user: UserProfile, chip: MONEY_TYPE
     """Open a round in this chat — or, when one is already open, take a seat at it."""
     table = TABLES.get(chat_id)
     if table is None or table.settled or time.time() - table.started_at > TABLE_TIMEOUT:
+        if ledger.get_user_balance(user.id) < RouletteGame.MIN_BET:
+            raise RuntimeError(f"You need at least {RouletteGame.MIN_BET} coins to open a table!")
         table = TABLES[chat_id] = RouletteTable(chat_id, user, ledger, chip)
     elif chip is not None:
         table.set_chip(user, chip)

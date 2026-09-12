@@ -5,7 +5,7 @@ from lib.callbacks.roulette_callback import RouletteCallback
 from lib.gambling.roulette import SPOTS, short_amount
 
 CHIPS = [100, 500, 1000, 5000]
-OUTSIDE_SPOTS = ["1-18", "even", "black", "red", "odd", "19-36"]
+OUTSIDE_SPOTS = ["1-18", "even", "red", "black", "odd", "19-36"]
 DOZEN_SPOTS = ["1st12", "2nd12", "3rd12"]
 COLUMN_SPOTS = ["col1", "col2", "col3"]
 

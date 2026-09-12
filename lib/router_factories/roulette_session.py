@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import FSInputFile, InputMediaAnimation, InputMediaPhoto
 
 from lib.callbacks.roulette_callback import RouletteCallback
-from lib.gambling.games.RouletteGame import RouletteTable
+from lib.gambling.games.RouletteGame import RouletteTable, get_table
 from lib.gambling.roulette import SPOTS, render_roulette, short_amount
 from lib.keyboards.roulette_keyboard import get_roulette_keyboard
 from lib.middlewares.roulette_table_middleware import RouletteTableMiddleware
@@ -69,7 +69,9 @@ def create_router() -> Router:
         return await state.clear()
 
     @router.message(RouletteState.roulette_activated, F.text.startswith("/"))
-    async def command_cmd(message: types.Message):
+    async def command_cmd(message: types.Message, state: FSMContext):
+        if get_table(message.chat.id) is None:  # the round is over, stop holding the player
+            return await state.clear()
         return await message.reply("You're playing roulette right now!")
 
     return router

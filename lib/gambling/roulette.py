@@ -78,7 +78,7 @@ def dozen_center(index: int) -> tuple[int, int]:
 
 
 def outside_center(index: int) -> tuple[int, int]:
-    """Even-money bets, two number cells wide each: 1-18, EVEN, black, RED, ODD, 19-36."""
+    """Even-money bets, two number cells wide each: 1-18, EVEN, RED, black, ODD, 19-36."""
     return GRID_X + (2 * index + 1) * CELL_W, OUTSIDE_Y
 
 
@@ -91,8 +91,8 @@ def _spots() -> dict[str, Spot]:
              for number in ROULETTE_NUMBERS}
 
     even_money = {
-        "1-18": (LOW_NUMBERS, 0), "even": (EVEN_NUMBERS, 1), "black": (BLACK_NUMBERS, 2),
-        "red": (RED_NUMBERS, 3), "odd": (ODD_NUMBERS, 4), "19-36": (HIGH_NUMBERS, 5),
+        "1-18": (LOW_NUMBERS, 0), "even": (EVEN_NUMBERS, 1), "red": (RED_NUMBERS, 2),
+        "black": (BLACK_NUMBERS, 3), "odd": (ODD_NUMBERS, 4), "19-36": (HIGH_NUMBERS, 5),
     }
     thirds = {
         "1st12": (frozenset(range(1, 13)), dozen_center(0)),
@@ -316,11 +316,21 @@ def draw_chip(frame: np.ndarray, center: tuple[int, int], amount: int, colour=GO
     put_rotated_text(frame, short_amount(amount), (x, y + 5), 0, BLACK)
 
 
-def render_table(chips: list[tuple[str, int, tuple]] = ()) -> np.ndarray:
+def draw_wheel(frame: np.ndarray, wheel_angle: float = 0.0, ball_angle: float = None) -> None:
+    """The wheel on top of the frame, with the ball on its rim when an angle is given."""
+    rotation_matrix = cv2.getRotationMatrix2D(wheel_center, -wheel_angle, 1)
+    wheel = cv2.warpAffine(wheel_original, rotation_matrix, wheel_size, cv2.INTER_LINEAR)
+    if ball_angle is not None:
+        draw_ball(wheel, wheel_center, int(wheel_center[0] * 0.75) + 2, ball_angle)
+    cv2_paste_with_alpha(frame, wheel, (wheel_pad_x, wheel_pad_y))
+
+
+def render_table(chips: list[tuple[str, int, tuple]] = (), wheel: bool = False) -> np.ndarray:
     """The betting table with a chip on every covered spot.
 
     `chips` are `(spot name, amount, colour)`. Chips of several players on the same spot are spread
-    along a short diagonal across the cell, so that every one of them stays visible.
+    along a short diagonal across the cell, so that every one of them stays visible. With `wheel`
+    the wheel is drawn above the table, which is what the players bet against.
     """
     frame = background.copy()
     cv2_paste_with_alpha(frame, table, (table_pad_x, table_pad_y))
@@ -333,6 +343,9 @@ def render_table(chips: list[tuple[str, int, tuple]] = ()) -> np.ndarray:
         shift = int((index - (stack[name] - 1) / 2) * STACK_STEP)
         x, y = SPOTS[name].center
         draw_chip(frame, (x + shift, y - shift), amount, colour)
+
+    if wheel:
+        draw_wheel(frame)
 
     return frame
 
@@ -351,10 +364,7 @@ def render_roulette(winning_number: int = None, chips: list[tuple[str, int, tupl
     with OpencvCustomWriter(fps, WIDTH, HEIGHT, filename) as writer:
         for wheel_angle, ball_angle in angles:
             img = table_frame.copy()
-            rotation_matrix = cv2.getRotationMatrix2D(wheel_center, -wheel_angle, 1)
-            wheel = cv2.warpAffine(wheel_original, rotation_matrix, wheel_size, cv2.INTER_LINEAR)
-            draw_ball(wheel, wheel_center, int(wheel_center[0] * 0.75) + 2, ball_angle)
-            cv2_paste_with_alpha(img, wheel, (wheel_pad_x, wheel_pad_y))
+            draw_wheel(img, wheel_angle, ball_angle)
             # cv2.imshow("wheel", img)
             # cv2.waitKey(1000 // fps)
             writer.write(img)
