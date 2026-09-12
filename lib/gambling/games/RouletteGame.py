@@ -118,6 +118,14 @@ class RouletteTable:
         self.seat(user).chip = self.chips[user.id]
         return self.chips[user.id]
 
+    def add_chip(self, user: UserProfile, amount: MONEY_TYPE) -> int:
+        """Raise the chip the player is betting with, so any bet can be built up from the minimum."""
+        return self.set_chip(user, self.chip_of(user) + int(amount))
+
+    def reset_chip(self, user: UserProfile) -> int:
+        """Back to the smallest chip, after a misclick."""
+        return self.set_chip(user, RouletteGame.MIN_BET)
+
     def chip_of(self, user: UserProfile) -> int:
         return self.chips.get(user.id, int(user.roulette_bet))
 

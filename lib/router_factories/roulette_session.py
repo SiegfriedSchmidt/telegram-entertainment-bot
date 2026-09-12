@@ -2,6 +2,7 @@ import asyncio
 from functools import partial
 
 from aiogram import Router, types, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import FSInputFile, InputMediaAnimation, InputMediaPhoto
 
@@ -16,10 +17,17 @@ from lib.temporal_storage import UserProfile
 from lib.workers import workers
 
 
-async def show_table(message: types.Message, table: RouletteTable):
+async def show_table(message: types.Message, table: RouletteTable) -> bool:
+    """Redraw the table. False when the tap changed nothing, which Telegram refuses to edit."""
     image = FSInputFile(table.table_image(), filename="roulette.png")
     media = InputMediaPhoto(media=image, caption=table.get_betting_caption(), parse_mode="HTML")
-    return await message.edit_media(media, reply_markup=get_roulette_keyboard(table.host.id))
+    try:
+        await message.edit_media(media, reply_markup=get_roulette_keyboard(table.host.id))
+        return True
+    except TelegramBadRequest as error:
+        if "not modified" not in str(error):
+            raise
+        return False
 
 
 def create_router() -> Router:
@@ -31,9 +39,16 @@ def create_router() -> Router:
     @router.callback_query(RouletteCallback.filter(F.action == "chip"))
     async def chip_cmd(callback: types.CallbackQuery, callback_data: RouletteCallback,
                        table: RouletteTable, user: UserProfile):
-        chip = table.set_chip(user, callback_data.target)
-        await callback.answer(f"chip: {short_amount(chip)}")
-        return await show_table(callback.message, table)
+        chip = table.add_chip(user, callback_data.target)
+        await show_table(callback.message, table)
+        return await callback.answer(f"chip: {short_amount(chip)}")
+
+    @router.callback_query(RouletteCallback.filter(F.action == "reset"))
+    async def reset_cmd(callback: types.CallbackQuery, callback_data: RouletteCallback,
+                        table: RouletteTable, user: UserProfile):
+        chip = table.reset_chip(user)
+        await show_table(callback.message, table)
+        return await callback.answer(f"chip: {short_amount(chip)}")
 
     @router.callback_query(RouletteCallback.filter(F.action == "bet"))
     async def bet_cmd(callback: types.CallbackQuery, callback_data: RouletteCallback,
@@ -43,13 +58,16 @@ def create_router() -> Router:
         except RuntimeError as error:  # a chip below the minimum, or not enough coins
             return await callback.answer(str(error), show_alert=True, cache_time=3)
 
-        return await show_table(callback.message, table)
+        await show_table(callback.message, table)
+        return await callback.answer()
 
     @router.callback_query(RouletteCallback.filter(F.action == "clear"))
     async def clear_cmd(callback: types.CallbackQuery, callback_data: RouletteCallback,
                         table: RouletteTable, user: UserProfile):
         table.clear_bets(user)  # only the chips of whoever pressed the button
-        return await show_table(callback.message, table)
+        if not await show_table(callback.message, table):
+            return await callback.answer("Nothing to clear")
+        return await callback.answer()
 
     @router.callback_query(RouletteCallback.filter(F.action == "spin"))
     async def spin_cmd(callback: types.CallbackQuery, callback_data: RouletteCallback,

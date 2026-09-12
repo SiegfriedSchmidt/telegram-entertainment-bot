@@ -4,7 +4,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from lib.callbacks.roulette_callback import RouletteCallback
 from lib.gambling.roulette import SPOTS, short_amount
 
-CHIPS = [100, 500, 1000, 5000]
+CHIPS = [100, 500, 1000, 5000]  # every tap adds that much to the player's chip
 OUTSIDE_SPOTS = ["1-18", "even", "red", "black", "odd", "19-36"]
 DOZEN_SPOTS = ["1st12", "2nd12", "3rd12"]
 COLUMN_SPOTS = ["col1", "col2", "col3"]
@@ -26,7 +26,8 @@ def get_roulette_keyboard(host_id: int):
     def spot(name: str) -> InlineKeyboardButton:
         return button(SPOTS[name].name, "bet", name)
 
-    builder.row(*[button(short_amount(value), "chip", str(value)) for value in CHIPS])
+    builder.row(*[button(f"+{short_amount(value)}", "chip", str(value)) for value in CHIPS],
+                button(f"⟲{short_amount(CHIPS[0])}", "reset"))
     builder.row(button("0", "bet", "0"))
     for first in range(1, 37, 6):
         builder.row(*[spot(str(number)) for number in range(first, first + 6)])
