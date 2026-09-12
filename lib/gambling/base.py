@@ -14,7 +14,8 @@ class BaseGame(ABC):
         self.user_bet, self.gamble_bet, handle = self.process_bet(user_bet)
         self.handles: list[FreezeHandle] = [handle]
 
-    def process_bet(self, raw_bet: MONEY_TYPE) -> tuple[int, int, FreezeHandle]:
+    def process_bet(self, raw_bet: MONEY_TYPE, user: UserProfile = None) -> tuple[int, int, FreezeHandle]:
+        user = user if user is not None else self.user
         if raw_bet == "allin":
             bet = self.ledger.get_user_balance(self.user.id)
         else:
@@ -25,11 +26,11 @@ class BaseGame(ABC):
         if bet < self.MIN_BET:
             raise RuntimeError(f"Bet cannot be less than {self.MIN_BET}!")
 
-        return bet, self.ledger.calc_fee(bet)[0], self.ledger.freeze(self.user.id, bet)
+        return bet, self.ledger.calc_fee(bet)[0], self.ledger.freeze(user.id, bet)
 
-    def add_bet(self, raw_bet: MONEY_TYPE) -> int:
+    def add_bet(self, raw_bet: MONEY_TYPE, user: UserProfile = None) -> int:
         """Freeze an extra bet (double/split) and fold it into the running totals. Returns its fee-adjusted amount."""
-        user_bet, gamble_bet, handle = self.process_bet(raw_bet)
+        user_bet, gamble_bet, handle = self.process_bet(raw_bet, user)
         self.user_bet += user_bet
         self.gamble_bet += gamble_bet
         self.handles.append(handle)
