@@ -88,8 +88,9 @@ def create_router() -> Router:
 
     @router.message(RouletteState.roulette_activated, F.text.startswith("/"))
     async def command_cmd(message: types.Message, state: FSMContext):
-        if get_table(message.chat.id) is None:  # the round is over, stop holding the player
+        if get_table(message.chat.id, message.from_user.id) is None:  # the round is over
             return await state.clear()
-        return await message.reply("You're playing roulette right now!")
+        game_message: types.Message = (await state.get_data()).get("game_message")
+        return await game_message.reply("You're playing roulette right now!")
 
     return router

@@ -230,17 +230,24 @@ def create_router():
     @router.message(Command("roulette"))
     async def roulette_cmd(message: types.Message, command: CommandObject, state: FSMContext,
                            user: UserProfile, ledger: Ledger):
-        args = command.args.split() if command.args else []
-        chip = args[0] if args else user.roulette_bet
+        args = get_args(command, 0, 1)
+        chip = args[0] if len(args) == 1 else user.roulette_bet
 
-        table = open_table(message.chat.id, ledger, user, chip)
-        await message.reply_photo(
+        try:
+            table = open_table(message.chat.id, ledger, user, chip)
+        except RuntimeError as error:  # not enough coins to open a table
+            return await message.reply(str(error))
+
+        user.roulette_bet = chip
+        game_message = await message.reply_photo(
             FSInputFile(table.table_image(), filename="roulette.png"),
             caption=table.get_betting_caption(),
             reply_markup=get_roulette_keyboard(table.host.id),
             parse_mode="HTML"
         )
-        return await state.set_state(RouletteState.roulette_activated)
+
+        await state.set_state(RouletteState.roulette_activated)
+        return await state.set_data({"game_message": game_message})
 
     @router.message(Command("balance"))
     async def balance_cmd(message: types.Message, ledger: Ledger, user: UserProfile):

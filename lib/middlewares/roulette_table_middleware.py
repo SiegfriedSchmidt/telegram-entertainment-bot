@@ -20,7 +20,11 @@ class RouletteTableMiddleware(BaseMiddleware):
             event: CallbackQuery,
             data: Dict[str, Any]
     ) -> Any:
-        table = get_table(event.message.chat.id)
+        callback_data = data.get("callback_data")
+        if callback_data is None:  # a button that is not ours
+            return await handler(event, data)
+
+        table = get_table(event.message.chat.id, callback_data.player_id)
         if table is None or table.settled:
             return await event.answer("This round is over.", show_alert=True, cache_time=3)
         if table.spinning:

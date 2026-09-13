@@ -113,8 +113,20 @@ class RouletteTable:
         return [game.user for game in self.seats.values()]
 
     def set_chip(self, user: UserProfile, chip: MONEY_TYPE) -> int:
-        """Every player picks their own chip, so two of them never fight over the size."""
-        self.chips[user.id] = int(chip) if str(chip).isdigit() else int(user.roulette_bet)
+        """Every player picks their own chip, so two of them never fight over the size.
+
+        The chip is a number or `allin` (the whole balance); anything else is refused, the way
+        `process_bet` refuses it. A chip below the minimum is raised to it, so nobody gets stuck
+        with a bet they are not allowed to place.
+        """
+        if str(chip) == "allin":
+            amount = int(self.ledger.get_user_balance(user.id))
+        elif str(chip).isdigit():
+            amount = int(chip)
+        else:
+            raise RuntimeError(f"Invalid bet {chip}")  # the wording base.py uses
+
+        self.chips[user.id] = max(amount, RouletteGame.MIN_BET)
         self.seat(user).chip = self.chips[user.id]
         return self.chips[user.id]
 
@@ -127,7 +139,8 @@ class RouletteTable:
         return self.set_chip(user, RouletteGame.MIN_BET)
 
     def chip_of(self, user: UserProfile) -> int:
-        return self.chips.get(user.id, int(user.roulette_bet))
+        """The chip the player bets with; the minimum until they pick another one."""
+        return self.chips.get(user.id, RouletteGame.MIN_BET)
 
     def stake_of(self, user: UserProfile) -> int:
         return self.seats[user.id].stake if user.id in self.seats else 0
@@ -158,7 +171,7 @@ class RouletteTable:
         caption = [f"{self.winning_number}, {describe_number(self.winning_number)}."]
         caption += [game.settle(self.winning_number) for game in self.seats.values() if game.bets]
         self.settled = True
-        close_table(self.chat_id)
+        close_table(self.chat_id, self.host.id)
         return "\n".join(caption)
 
     # ----------------------------------------------------------------- rendering
@@ -184,25 +197,30 @@ class RouletteTable:
         return "\n".join(caption)
 
 
-TABLES: dict[int, RouletteTable] = {}  # chat id -> the open round, one per chat
+TABLES: dict[tuple[int, int], RouletteTable] = {}  # (chat id, host id) -> that player's open round
 TABLE_TIMEOUT = 10 * 60  # a table whose host never spins frees itself eventually
 
 
 def open_table(chat_id: int, ledger: Ledger, user: UserProfile, chip: MONEY_TYPE = None) -> RouletteTable:
-    """Open a round in this chat — or, when one is already open, take a seat at it."""
-    table = TABLES.get(chat_id)
+    """Open a round — or, when this player already has one open here, sit back down at it.
+
+    Two players in the same chat each get their own table: whoever opens a round is its host, and
+    the only one who may spin it.
+    """
+    chip = chip if chip is not None else user.roulette_bet
+    table = TABLES.get((chat_id, user.id))
     if table is None or table.settled or time.time() - table.started_at > TABLE_TIMEOUT:
         if ledger.get_user_balance(user.id) < RouletteGame.MIN_BET:
             raise RuntimeError(f"You need at least {RouletteGame.MIN_BET} coins to open a table!")
-        table = TABLES[chat_id] = RouletteTable(chat_id, user, ledger, chip)
-    elif chip is not None:
+        table = TABLES[chat_id, user.id] = RouletteTable(chat_id, user, ledger, chip)
+    else:
         table.set_chip(user, chip)
     return table
 
 
-def get_table(chat_id: int) -> RouletteTable | None:
-    return TABLES.get(chat_id)
+def get_table(chat_id: int, host_id: int) -> RouletteTable | None:
+    return TABLES.get((chat_id, host_id))
 
 
-def close_table(chat_id: int) -> None:
-    TABLES.pop(chat_id, None)
+def close_table(chat_id: int, host_id: int) -> None:
+    TABLES.pop((chat_id, host_id), None)
