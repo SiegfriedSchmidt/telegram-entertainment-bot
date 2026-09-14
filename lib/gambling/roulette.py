@@ -295,8 +295,8 @@ table_size = table.shape[:2]
 table_pad_x = (WIDTH - table_size[1]) // 2
 table_pad_y = wheel_size[0] + wheel_pad_y + (HEIGHT - table_size[0] - wheel_pad_y - wheel_size[0]) // 2
 
-# one colour per player, so a shared table can tell the chips — and the caption lines — apart
-PLAYER_COLOURS = [(80, 80, 235), (80, 190, 120), (235, 195, 80), (200, 100, 200), (90, 195, 225), (235, 135, 90)]
+# one color per player, so a shared table can tell the chips — and the caption lines — apart, BGR
+PLAYER_COLOURS = [(80, 80, 235), (80, 190, 120), (80, 195, 235), (200, 100, 200), (225, 195, 90), (90, 135, 235)]
 PLAYER_DOTS = ["🟥", "🟩", "🟨", "🟪", "🟦", "🟧"]
 
 
