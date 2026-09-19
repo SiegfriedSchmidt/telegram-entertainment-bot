@@ -1,15 +1,16 @@
 import asyncio
 from functools import partial
-
 from aiogram import Router, types, F
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import FSInputFile, InputMediaAnimation, InputMediaPhoto
-
+from aiogram.utils.chat_action import ChatActionMiddleware
 from lib.callbacks.roulette_callback import RouletteCallback
-from lib.gambling.games.RouletteGame import RouletteTable, get_table
+from lib.gambling.games.RouletteGame import RouletteTable, find_table, get_table, parse_bets, tables_in, open_table
 from lib.gambling.roulette import SPOTS, render_roulette, short_amount
 from lib.keyboards.roulette_keyboard import get_roulette_keyboard
+from lib.ledger.ledger import Ledger
 from lib.middlewares.roulette_table_middleware import RouletteTableMiddleware
 from lib.middlewares.user_middleware import UserMiddleware
 from lib.states.roulette_state import RouletteState
@@ -19,8 +20,8 @@ from lib.workers import workers
 
 async def show_table(message: types.Message, table: RouletteTable) -> bool:
     """Redraw the table. False when the tap changed nothing, which Telegram refuses to edit."""
-    image = FSInputFile(table.table_image(), filename="roulette.png")
-    media = InputMediaPhoto(media=image, caption=table.get_betting_caption(), parse_mode="HTML")
+    media = InputMediaPhoto(media=FSInputFile(table.table_image(), filename="roulette.png"),
+                            caption=table.get_betting_caption(), parse_mode="HTML")
     try:
         await message.edit_media(media, reply_markup=get_roulette_keyboard(table.host.id))
         return True
@@ -30,11 +31,30 @@ async def show_table(message: types.Message, table: RouletteTable) -> bool:
         return False
 
 
+async def spin_table(message: types.Message, table: RouletteTable, state: FSMContext) -> None:
+    """Draw the number, render the wheel, pay everyone out. SPIN and `-now` share this."""
+    if not table.bets:
+        await message.reply("Place at least one bet first.")
+        return None
+
+    # the number is drawn before the frames are, so the video cannot lie about the outcome
+    number = table.draw_winning_number()
+    filename, duration, _ = await workers.enqueue(partial(render_roulette, number, table.chips_on_table()))
+
+    await message.edit_media(InputMediaAnimation(media=FSInputFile(filename, filename=str(filename))))
+    await asyncio.sleep(duration)
+    await message.edit_caption(caption=table.settle())
+    return await state.clear()
+
+
 def create_router() -> Router:
-    """Every tap on the table. The /roulette command itself lives with your other commands (NOTES)."""
+    """Every tap on the table, plus `/bet`. `/roulette` itself lives with your other commands
+    (NOTES) — it calls `parse_bets` and `spin_table` from here."""
     router = Router()
     router.callback_query.middleware(RouletteTableMiddleware())
     router.callback_query.middleware(UserMiddleware())
+    router.message.middleware(ChatActionMiddleware())
+    router.message.middleware(UserMiddleware())
 
     @router.callback_query(RouletteCallback.filter(F.action == "chip"))
     async def chip_cmd(callback: types.CallbackQuery, callback_data: RouletteCallback,
@@ -74,17 +94,76 @@ def create_router() -> Router:
                        table: RouletteTable, user: UserProfile, state: FSMContext):
         if callback.from_user.id != callback_data.player_id:
             return await callback.answer("Only the host may spin the wheel", show_alert=True, cache_time=3)
-        if not table.bets:
-            return await callback.answer("Place at least one bet first", show_alert=True, cache_time=3)
+        return await spin_table(callback.message, table, state)
 
-        # the number is drawn before the frames are, so the video cannot lie about the outcome
-        number = table.draw_winning_number()
-        filename, duration, _ = await workers.enqueue(partial(render_roulette, number, table.chips_on_table()))
+    @router.message(Command("roulette"))
+    async def roulette_cmd(message: types.Message, command: CommandObject, state: FSMContext,
+                           user: UserProfile, ledger: Ledger):
+        chip, bets, now = parse_bets(command.args.split() if command.args else [], user.roulette_bet)
 
-        await callback.message.edit_media(InputMediaAnimation(media=FSInputFile(filename, filename=str(filename))))
-        await asyncio.sleep(duration)
-        await callback.message.edit_caption(caption=table.settle())
-        return await state.clear()
+        try:
+            table = open_table(message.chat.id, ledger, user, chip)
+        except RuntimeError as error:  # not enough coins to open a table
+            return await message.reply(str(error))
+
+        user.roulette_bet = chip
+        game_message = await message.reply_photo(
+            FSInputFile(table.table_image(), filename="roulette.png"),
+            caption=table.get_betting_caption(),
+            reply_markup=get_roulette_keyboard(table.host.id),
+            parse_mode="HTML"
+        )
+        table.message = game_message  # so /bet can find this wheel by a reply
+        await state.set_state(RouletteState.roulette_activated)
+        await state.set_data({"game_message": game_message})
+
+        try:
+            table.place_bets(user, bets)  # "200 odd 100 red", straight from the command
+        except RuntimeError as error:  # a chip below the minimum, or not enough coins
+            return await message.reply(str(error))
+
+        if bets:
+            await show_table(game_message, table)  # the picture already shows the chips
+        if now:
+            return await spin_table(game_message, table, state)
+        return None
+
+    @router.message(Command("bet"))
+    async def bet_command_cmd(message: types.Message, command: CommandObject, state: FSMContext,
+                              user: UserProfile):
+        """Chips without touching the keyboard: `/bet 200 odd 100 red`.
+
+        The table is the wheel you replied to, or your own, or the only one open in the chat.
+        """
+        args = command.args.split() if command.args else []
+        if not args:
+            return await message.reply("Tell me what to bet on: /bet 200 odd 100 red")
+
+        chip, bets, now = parse_bets(args)
+
+        reply = message.reply_to_message
+        table = find_table(message.chat.id, host_id=user.id, message_id=reply.message_id if reply is not None else None)
+        if table is None:
+            hint = "Reply to the wheel you mean." if tables_in(message.chat.id) else "No roulette is running."
+            return await message.reply(hint)
+
+        if now and user.id != table.host.id:
+            return await message.reply("Only the host may spin the wheel.")
+
+        try:
+            if chip is not None:
+                table.set_chip(user, chip)
+            table.place_bets(user, bets)
+        except RuntimeError as error:  # not enough coins, an unknown spot, a chip below the minimum
+            return await message.reply(str(error))
+
+        if now:
+            return await spin_table(table.message, table, state)
+
+        if table.message is not None:
+            await show_table(table.message, table)
+        # return await message.reply(f"Staked {short_amount(table.stake_of(user))}.")
+        return None
 
     @router.message(RouletteState.roulette_activated, F.text.startswith("/"))
     async def command_cmd(message: types.Message, state: FSMContext):

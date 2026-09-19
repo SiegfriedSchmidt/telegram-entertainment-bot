@@ -48,7 +48,13 @@ class RouletteGame(BaseGame):
     # ------------------------------------------------------------------- betting
     def place_bet(self, spot: Spot, amount: MONEY_TYPE = None) -> Bet:
         """Put one chip down. The stake is frozen at once, like in every other game."""
-        amount = self.chip if amount is None else int(amount)
+        if amount is None:
+            amount = self.chip
+        elif str(amount) == "allin":
+            amount = self.ledger.get_user_balance(self.user.id)
+        else:
+            amount = int(amount)
+
         if amount < self.MIN_BET:
             raise RuntimeError(f"Bet cannot be less than {self.MIN_BET}!")
         if self.ledger.get_user_balance(self.user.id) < amount:
@@ -100,6 +106,7 @@ class RouletteTable:
         self.winning_number: int | None = None
         self.settled = False
         self.started_at = time.time()
+        self.message = None  # the picture the round lives on, set by /roulette
         self.set_chip(host, chip if chip is not None else host.roulette_bet)
 
     # ------------------------------------------------------------------ seating
@@ -146,8 +153,13 @@ class RouletteTable:
         return self.seats[user.id].stake if user.id in self.seats else 0
 
     # ------------------------------------------------------------------- betting
-    def place_bet(self, user: UserProfile, spot: Spot) -> Bet:
-        return self.seat(user).place_bet(spot, self.chip_of(user))
+    def place_bet(self, user: UserProfile, spot: Spot, amount: MONEY_TYPE = None) -> Bet:
+        return self.seat(user).place_bet(spot, amount if amount is not None else self.chip_of(user))
+
+    def place_bets(self, user: UserProfile, bets: list[tuple[str, int]]) -> None:
+        """Several chips at once, the way `/roulette 200 odd 100 red` asks for them."""
+        for name, amount in bets:
+            self.place_bet(user, SPOTS[name], amount)
 
     def clear_bets(self, user: UserProfile) -> None:
         self.seat(user).clear_bets()
@@ -197,6 +209,30 @@ class RouletteTable:
         return "\n".join(caption)
 
 
+def parse_bets(args: list[str], chip: MONEY_TYPE = None) -> tuple[MONEY_TYPE, list[tuple[str, int]], bool]:
+    """Read `/roulette 200 odd 100 red -now` into the chip to start with, the bets, and whether to
+    spin at once.
+
+    A lone word in front is the chip — that is how `/roulette 1000` and `/roulette allin` keep
+    working — the rest are `amount spot` pairs, and `-now` can sit anywhere.
+    """
+    tokens = [token for token in args if token != "-now"]
+    spin_now = "-now" in args
+
+    if len(tokens) % 2 and tokens[0].lower() not in SPOTS:
+        chip, tokens = tokens[0], tokens[1:]
+
+    bets = []
+    for amount, name in zip(tokens[::2], tokens[1::2]):
+        if name.lower() not in SPOTS or not (str(amount).isdigit() or str(amount) == "allin"):
+            raise RuntimeError(f"Invalid bet {amount} {name}")
+        bets.append((name.lower(), amount))
+
+    if len(tokens) % 2:
+        raise RuntimeError(f"Invalid bet {tokens[-1]}")
+    return chip, bets, spin_now
+
+
 TABLES: dict[tuple[int, int], RouletteTable] = {}  # (chat id, host id) -> that player's open round
 TABLE_TIMEOUT = 10 * 60  # a table whose host never spins frees itself eventually
 
@@ -220,6 +256,25 @@ def open_table(chat_id: int, ledger: Ledger, user: UserProfile, chip: MONEY_TYPE
 
 def get_table(chat_id: int, host_id: int) -> RouletteTable | None:
     return TABLES.get((chat_id, host_id))
+
+
+def tables_in(chat_id: int) -> list[RouletteTable]:
+    """Every round still open in this chat — several players can run their own at once."""
+    return [table for (chat, _), table in TABLES.items() if chat == chat_id and not table.settled]
+
+
+def find_table(chat_id: int, host_id: int = None, message_id: int = None) -> RouletteTable | None:
+    """The round a `/bet` means: the wheel being replied to, then the player's own, then the only
+    one open in the chat.
+    """
+    open_tables = tables_in(chat_id)
+    for table in open_tables:
+        if message_id is not None and table.message is not None and table.message.message_id == message_id:
+            return table
+    for table in open_tables:
+        if host_id is not None and table.host.id == host_id:
+            return table
+    return open_tables[0] if len(open_tables) == 1 else None
 
 
 def close_table(chat_id: int, host_id: int) -> None:
