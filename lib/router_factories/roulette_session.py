@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import FSInputFile, InputMediaAnimation, InputMediaPhoto
 from aiogram.utils.chat_action import ChatActionMiddleware
 from lib.callbacks.roulette_callback import RouletteCallback
-from lib.gambling.games.RouletteGame import RouletteTable, find_table, get_table, parse_bets, tables_in, open_table
+from lib.gambling.games.RouletteGame import (RouletteTable, find_table, get_table, open_table, parse_bets, tables_in)
 from lib.gambling.roulette import SPOTS, render_roulette, short_amount
 from lib.keyboards.roulette_keyboard import get_roulette_keyboard
 from lib.ledger.ledger import Ledger
@@ -23,7 +23,7 @@ async def show_table(message: types.Message, table: RouletteTable) -> bool:
     media = InputMediaPhoto(media=FSInputFile(table.table_image(), filename="roulette.png"),
                             caption=table.get_betting_caption(), parse_mode="HTML")
     try:
-        await message.edit_media(media, reply_markup=get_roulette_keyboard(table.host.id))
+        await message.edit_media(media, reply_markup=get_roulette_keyboard(table.host.id, table.everyone_ready()))
         return True
     except TelegramBadRequest as error:
         if "not modified" not in str(error):
@@ -31,8 +31,13 @@ async def show_table(message: types.Message, table: RouletteTable) -> bool:
         return False
 
 
-async def spin_table(message: types.Message, table: RouletteTable, state: FSMContext) -> None:
-    """Draw the number, render the wheel, pay everyone out. SPIN and `-now` share this."""
+async def spin_table(message: types.Message, table: RouletteTable, state: FSMContext,
+                     post: bool = False) -> None:
+    """Draw the number, render the wheel, pay everyone out. SPIN and `-now` share this.
+
+    `post` is `-now` on a table nobody has seen yet: the wheel goes out on its own instead of
+    replacing the picture the players would have tapped on.
+    """
     if not table.bets:
         await message.reply("Place at least one bet first.")
         return None
@@ -40,16 +45,19 @@ async def spin_table(message: types.Message, table: RouletteTable, state: FSMCon
     # the number is drawn before the frames are, so the video cannot lie about the outcome
     number = table.draw_winning_number()
     filename, duration, _ = await workers.enqueue(partial(render_roulette, number, table.chips_on_table()))
+    animation = FSInputFile(filename, filename=str(filename))
 
-    await message.edit_media(InputMediaAnimation(media=FSInputFile(filename, filename=str(filename))))
+    if post:
+        message = await message.reply_animation(animation)
+    else:
+        await message.edit_media(InputMediaAnimation(media=animation))
     await asyncio.sleep(duration)
     await message.edit_caption(caption=table.settle())
     return await state.clear()
 
 
 def create_router() -> Router:
-    """Every tap on the table, plus `/bet`. `/roulette` itself lives with your other commands
-    (NOTES) — it calls `parse_bets` and `spin_table` from here."""
+    """The whole of roulette: `/roulette`, `/bet`, and every tap on the table."""
     router = Router()
     router.callback_query.middleware(RouletteTableMiddleware())
     router.callback_query.middleware(UserMiddleware())
@@ -89,6 +97,14 @@ def create_router() -> Router:
             return await callback.answer("Nothing to clear")
         return await callback.answer()
 
+    @router.callback_query(RouletteCallback.filter(F.action == "ready"))
+    async def ready_cmd(callback: types.CallbackQuery, callback_data: RouletteCallback,
+                        table: RouletteTable, user: UserProfile):
+        """👍 — "I am done betting", so the host can see whose chips are still coming."""
+        ready = table.toggle_ready(user)
+        await show_table(callback.message, table)
+        return await callback.answer("Ready 👍" if ready else "Bets open again")
+
     @router.callback_query(RouletteCallback.filter(F.action == "spin"))
     async def spin_cmd(callback: types.CallbackQuery, callback_data: RouletteCallback,
                        table: RouletteTable, user: UserProfile, state: FSMContext):
@@ -99,6 +115,7 @@ def create_router() -> Router:
     @router.message(Command("roulette"))
     async def roulette_cmd(message: types.Message, command: CommandObject, state: FSMContext,
                            user: UserProfile, ledger: Ledger):
+        """`/roulette [chip] [amount spot ...] [-now]` — open a table, and bet on it in one go."""
         chip, bets, now = parse_bets(command.args.split() if command.args else [], user.roulette_bet)
 
         try:
@@ -107,6 +124,14 @@ def create_router() -> Router:
             return await message.reply(str(error))
 
         user.roulette_bet = chip
+        try:
+            table.place_bets(user, bets)  # "200 odd 100 red", straight from the command
+        except RuntimeError as error:  # a chip below the minimum, or not enough coins
+            return await message.reply(str(error))
+
+        if now:  # nobody is going to tap, so skip the table entirely
+            return await spin_table(message, table, state, post=True)
+
         game_message = await message.reply_photo(
             FSInputFile(table.table_image(), filename="roulette.png"),
             caption=table.get_betting_caption(),
@@ -115,18 +140,7 @@ def create_router() -> Router:
         )
         table.message = game_message  # so /bet can find this wheel by a reply
         await state.set_state(RouletteState.roulette_activated)
-        await state.set_data({"game_message": game_message})
-
-        try:
-            table.place_bets(user, bets)  # "200 odd 100 red", straight from the command
-        except RuntimeError as error:  # a chip below the minimum, or not enough coins
-            return await message.reply(str(error))
-
-        if bets:
-            await show_table(game_message, table)  # the picture already shows the chips
-        if now:
-            return await spin_table(game_message, table, state)
-        return None
+        return await state.set_data({"game_message": game_message})
 
     @router.message(Command("bet"))
     async def bet_command_cmd(message: types.Message, command: CommandObject, state: FSMContext,
@@ -161,8 +175,7 @@ def create_router() -> Router:
             return await spin_table(table.message, table, state)
 
         if table.message is not None:
-            await show_table(table.message, table)
-        # return await message.reply(f"Staked {short_amount(table.stake_of(user))}.")
+            await show_table(table.message, table)  # the picture already shows the stake
         return None
 
     @router.message(RouletteState.roulette_activated, F.text.startswith("/"))

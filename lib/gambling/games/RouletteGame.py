@@ -107,6 +107,7 @@ class RouletteTable:
         self.settled = False
         self.started_at = time.time()
         self.message = None  # the picture the round lives on, set by /roulette
+        self.ready: set[int] = set()  # the players who said they are done betting
         self.set_chip(host, chip if chip is not None else host.roulette_bet)
 
     # ------------------------------------------------------------------ seating
@@ -154,6 +155,7 @@ class RouletteTable:
 
     # ------------------------------------------------------------------- betting
     def place_bet(self, user: UserProfile, spot: Spot, amount: MONEY_TYPE = None) -> Bet:
+        self.ready.discard(user.id)  # still putting chips down, so not ready any more
         return self.seat(user).place_bet(spot, amount if amount is not None else self.chip_of(user))
 
     def place_bets(self, user: UserProfile, bets: list[tuple[str, int]]) -> None:
@@ -162,7 +164,25 @@ class RouletteTable:
             self.place_bet(user, SPOTS[name], amount)
 
     def clear_bets(self, user: UserProfile) -> None:
+        self.ready.discard(user.id)
         self.seat(user).clear_bets()
+
+    # --------------------------------------------------------------------- ready
+    def set_ready(self, user: UserProfile, ready: bool = True) -> None:
+        """A player says they are done betting — and takes it back with the same button."""
+        if ready:
+            self.ready.add(user.id)
+        else:
+            self.ready.discard(user.id)
+
+    def toggle_ready(self, user: UserProfile) -> bool:
+        self.set_ready(user, user.id not in self.ready)
+        return user.id in self.ready
+
+    def everyone_ready(self) -> bool:
+        """Nobody with a chip down is still betting. The host does not count — they spin."""
+        guests = {bet.user.id for bet in self.bets} - {self.host.id}
+        return bool(guests) and guests <= self.ready
 
     @property
     def bets(self) -> list[Bet]:
@@ -202,10 +222,12 @@ class RouletteTable:
         for user in self.players():
             seat = self.seats[user.id]
             host = " (host)" if user.id == self.host.id else ""
+            ready = " 👍" if user.id in self.ready else ""
             caption.append(f"{seat.dot} {user}{host}: chip {short_amount(self.chip_of(user))}"
-                           f" · staked {short_amount(seat.stake)}")
+                           f" · staked {short_amount(seat.stake)}{ready}")
         if len(self.seats) > 1:
-            caption.append(f"Only {self.host} can spin the wheel.")
+            caption.append("Everybody is ready — spin when you like." if self.everyone_ready()
+                           else f"Only {self.host} can spin the wheel.")
         return "\n".join(caption)
 
 
