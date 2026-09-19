@@ -63,6 +63,8 @@ OUTSIDE_Y = (GRID_Y + 3 * CELL_H + TABLE_H) // 2
 COLUMN_X = GRID_X + 12 * CELL_W + (TABLE_W - GRID_X - 12 * CELL_W) // 2
 CHIP_RADIUS = 17
 STACK_STEP = 10  # how far apart the chips of two players on the same spot sit
+ROSTER_LINES = 9  # how many names fit under the daily wheel
+NAME_WHEEL_NAMES = 24  # above this the slices are too thin to write a name on
 
 
 def number_center(number: int) -> tuple[int, int]:
@@ -125,16 +127,17 @@ def short_amount(amount: int) -> str:
     return f"{amount // 1000}k" if amount >= 1000 and amount % 1000 == 0 else str(amount)
 
 
-def put_rotated_text(image, text, position, angle, color=(255, 255, 255)):
+def put_rotated_text(image, text, position, angle, color=(255, 255, 255),
+                     scale: float = FONT_SCALE, thickness: int = FONT_THICKNESS):
     """
-    Put rotated text on an image
+    Put rotated text on an image, centred on `position`
     """
 
     # Create a blank image for the text
     text_image = np.zeros_like(image)
 
     # Get text size
-    text_size, _ = cv2.getTextSize(text, FONT, FONT_SCALE, FONT_THICKNESS)
+    text_size, _ = cv2.getTextSize(text, FONT, scale, thickness)
     text_width, text_height = text_size
 
     # Calculate position to put text (centered on given position)
@@ -143,7 +146,7 @@ def put_rotated_text(image, text, position, angle, color=(255, 255, 255)):
 
     # Put text on blank image
     # cv2.putText(text_image, text, (x, y), font, font_scale, OUTLINE_COLOR, outline_thickness, cv2.LINE_AA)
-    cv2.putText(text_image, text, (x, y), FONT, FONT_SCALE, color, FONT_THICKNESS)
+    cv2.putText(text_image, text, (x, y), FONT, scale, color, thickness)
 
     # Get rotation matrix
     center = position
@@ -234,13 +237,15 @@ def ease_out_cubic(t: float) -> float:
     return 1 - (1 - t) ** 3
 
 
-def generate_roulette_angles(
-        winning_number: int,
+def generate_angles(
+        winning_index: int,
+        sector_count: int,
         total_seconds: float,
         fps: int,
         wheel_extra_spins: int | None = None,
         ball_extra_spins: int | None = None,
 ) -> list[tuple[float, float]]:
+    """Angles of a spin that ends with the ball on sector `winning_index` of `sector_count`."""
     if wheel_extra_spins is None:
         wheel_extra_spins = np.random.randint(6, 18)
     if ball_extra_spins is None:
@@ -249,12 +254,11 @@ def generate_roulette_angles(
     total_frames = int(total_seconds * fps)
     frames = []
 
-    # Find index of winning number
-    winning_idx = ROULETTE_NUMBERS.index(winning_number)
-    random_idx = np.random.randint(len(ROULETTE_NUMBERS) / 2, len(ROULETTE_NUMBERS))
+    sector_angle = 360.0 / sector_count
+    random_idx = np.random.randint(sector_count / 2, sector_count)
 
-    final_ball_angle = random_idx * SECTOR_ANGLE
-    final_wheel_angle = -((winning_idx - random_idx) * SECTOR_ANGLE + SECTOR_ANGLE / 2.0)
+    final_ball_angle = random_idx * sector_angle
+    final_wheel_angle = -((winning_index - random_idx) * sector_angle + sector_angle / 2.0)
 
     # Start angles = final + many extra full spins
     start_wheel_angle = final_wheel_angle - wheel_extra_spins * 360.0
@@ -277,6 +281,18 @@ def generate_roulette_angles(
         frames.append((wheel_angle, ball_angle))
 
     return frames
+
+
+def generate_roulette_angles(
+        winning_number: int,
+        total_seconds: float,
+        fps: int,
+        wheel_extra_spins: int | None = None,
+        ball_extra_spins: int | None = None,
+) -> list[tuple[float, float]]:
+    """The same, for the numbered wheel."""
+    return generate_angles(ROULETTE_NUMBERS.index(winning_number), NUM_SECTORS, total_seconds, fps,
+                           wheel_extra_spins, ball_extra_spins)
 
 
 # background = np.full((HEIGHT, WIDTH, 3), (172, 146, 140), dtype=np.uint8)
@@ -316,10 +332,13 @@ def draw_chip(frame: np.ndarray, center: tuple[int, int], amount: int, colour=GO
     put_rotated_text(frame, short_amount(amount), (x, y + 5), 0, BLACK)
 
 
-def draw_wheel(frame: np.ndarray, wheel_angle: float = 0.0, ball_angle: float = None) -> None:
-    """The wheel on top of the frame, with the ball on its rim when an angle is given."""
+def draw_wheel(frame: np.ndarray, wheel_angle: float = 0.0, ball_angle: float = None,
+               image: np.ndarray = None) -> None:
+    """The wheel on top of the frame, with the ball on its rim when an angle is given. `image` is
+    the wheel to spin — the numbered one by default, or one with names written on it."""
     rotation_matrix = cv2.getRotationMatrix2D(wheel_center, -wheel_angle, 1)
-    wheel = cv2.warpAffine(wheel_original, rotation_matrix, wheel_size, cv2.INTER_LINEAR)
+    wheel = cv2.warpAffine(image if image is not None else wheel_original,
+                           rotation_matrix, wheel_size, cv2.INTER_LINEAR)
     if ball_angle is not None:
         draw_ball(wheel, wheel_center, int(wheel_center[0] * 0.75) + 2, ball_angle)
     cv2_paste_with_alpha(frame, wheel, (wheel_pad_x, wheel_pad_y))
@@ -348,6 +367,73 @@ def render_table(chips: list[tuple[str, int, tuple]] = (), wheel: bool = False) 
         draw_wheel(frame)
 
     return frame
+
+
+def create_name_wheel(names: list[str], radius: int = 250) -> np.ndarray:
+    """A wheel with one slice per player and their name on it.
+
+    Every slice is the same size, so the ball is equally likely to stop on any of them — that is
+    the whole point of not squeezing the names into the 37 numbered sectors.
+    """
+    sector_angle = 360.0 / len(names)
+    inner_radius = int(radius * 0.75)
+    text_radius = inner_radius + (radius - inner_radius) // 2
+    center = (radius, radius)
+    named = len(names) <= NAME_WHEEL_NAMES  # below this the names are still readable
+
+    wheel = np.full((radius * 2, radius * 2, 4), (0, 0, 0, 0), dtype=np.uint8)
+    cv2.circle(wheel, center, radius, (40, 40, 80, 255), -1)
+
+    for index, name in enumerate(names):
+        start_angle = index * sector_angle
+        cv2.ellipse(wheel, center, (radius, radius), 0, start_angle, start_angle + sector_angle,
+                    RED if index % 2 else BLACK, -1)
+        draw_white_border(wheel, radius, center, 3, start_angle)
+
+        if named:
+            mid_angle = (start_angle + sector_angle / 2)
+            x = int(center[0] + text_radius * np.cos(np.radians(mid_angle)))
+            y = int(center[1] + text_radius * np.sin(np.radians(mid_angle)))
+            put_rotated_text(wheel, name[:12], (x, y), -(mid_angle + 90), TEXT_COLOR, 0.5, 1)
+
+    cv2.circle(wheel, center, inner_radius, (20, 20, 60, 255), -1)
+    cv2.circle(wheel, center, inner_radius + 4, GOLDEN, 8)
+    return wheel
+
+
+def draw_roster(frame: np.ndarray, names: list[str]) -> None:
+    """The players listed under the wheel."""
+    shown = names[:ROSTER_LINES - 1] if len(names) > ROSTER_LINES else list(names)
+    if len(names) > ROSTER_LINES:
+        shown.append(f"...and {len(names) - ROSTER_LINES + 1} more")
+
+    y = wheel_pad_y + wheel_size[0] + 60
+    for name in shown:
+        put_rotated_text(frame, name, (WIDTH // 2, y), 0, TEXT_COLOR, 0.7, 2)
+        y += 34
+
+
+def render_daily_roulette(names: list[str], winner_index: int, total_seconds: float = None) -> tuple[str, float, int]:
+    """The daily wheel: one slice per player, spinning until the ball drops on `winner_index`.
+
+    The players are listed under the wheel as well, which is what carries the names when there are
+    too many of them to write on the slices.
+    """
+    fps = 30
+    total_seconds = float(total_seconds if total_seconds is not None else np.random.uniform(8.0, 12.0))
+    filename = tmp_folder_path / f'daily_roulette_{np.random.randint(0, 1 << 31)}.mp4'
+    wheel = create_name_wheel(names) if names else wheel_original
+
+    frame = background.copy()
+    draw_roster(frame, names)
+
+    with OpencvCustomWriter(fps, WIDTH, HEIGHT, filename) as writer:
+        for wheel_angle, ball_angle in generate_angles(winner_index, max(len(names), 1), total_seconds, fps):
+            img = frame.copy()
+            draw_wheel(img, wheel_angle, ball_angle, wheel)
+            writer.write(img)
+
+    return filename, total_seconds, winner_index
 
 
 def render_roulette(winning_number: int = None, chips: list[tuple[str, int, tuple]] = (),

@@ -119,6 +119,15 @@ def get_user_or_exception(user_id: int) -> User:
     return user
 
 
+def get_all_users() -> list[tuple[int, str]]:
+    users = (
+        User.select(User.id, User.username)
+        .join(Stats)
+        .where(Stats.prizes != 0)
+    )
+    return [(user.id, str(user)) for user in users]
+
+
 def cast_datetime(dtf: DateTimeField) -> datetime:
     return cast(datetime, cast(object, dtf))  # Ridiculous btw
 

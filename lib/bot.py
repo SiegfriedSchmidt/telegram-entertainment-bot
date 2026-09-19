@@ -1,13 +1,17 @@
 import asyncio
+import lib.database as database
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.types import FSInputFile
 # from aiogram.exceptions import TelegramBadRequest
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from lib.LLM.llm_providers import LLMProviders
 from lib.api.joke_api import get_joke
+from lib.gambling.games.DailyRouletteGame import spin_daily_roulette
+from lib.temporal_storage import temporal_storage
 from lib.workers import workers
 # from lib.api.meme_api import get_meme
 from lib.bot_commands import set_bot_commands
@@ -34,13 +38,19 @@ async def on_day_start(bot: Bot, ledger: Ledger) -> None:
 
     joke = await get_joke()
     message = f'Daily joke:\n\n{joke}'
+    leaderboard = '\n'.join(get_leaderboard(ledger))
+    fortune_wheel_result = await spin_daily_roulette(ledger)
+    fortune_wheel_animation = FSInputFile(fortune_wheel_result.filename, filename=str(fortune_wheel_result.filename))
 
     for group_id in config.group_ids:
-        leaderboard = '\n'.join(get_leaderboard(ledger))
         await bot.send_message(
             group_id, f"<b>Daily Prize Updated!</b>. Do /daily_prize to open!\n{leaderboard}", parse_mode="html"
         )
         await asyncio.sleep(5)
+        wheel_animation_msg = await bot.send_animation(group_id, fortune_wheel_animation)
+        await asyncio.sleep(fortune_wheel_result.duration)
+        await wheel_animation_msg.edit_caption(caption=fortune_wheel_result.caption, parse_mode="html")
+        await asyncio.sleep(3)
         await bot.send_message(group_id, message, parse_mode=None)
 
     # url, caption = None, None
@@ -80,6 +90,10 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler, ledger: Ledger) -> N
         await notification(str(e), bot)
         await bot.session.close()
         raise
+
+    # create database users in temporal storage
+    for user_id, username in database.get_all_users():
+        temporal_storage.add_user(user_id, username)
 
     # scheduler
     hour, minute = map(int, config.day_start_time.split(":"))
