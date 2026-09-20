@@ -115,8 +115,8 @@ def create_router() -> Router:
     @router.message(Command("roulette"))
     async def roulette_cmd(message: types.Message, command: CommandObject, state: FSMContext,
                            user: UserProfile, ledger: Ledger):
-        """`/roulette [chip] [amount spot ...] [-now]` — open a table, and bet on it in one go."""
-        chip, bets, now = parse_bets(command.args.split() if command.args else [], user.roulette_bet)
+        """`/roulette [chip] [amount spot ...] [-now] [-ready]` — open a table, and bet in one go."""
+        chip, bets, now, ready = parse_bets(command.args.split() if command.args else [], user.roulette_bet)
 
         try:
             table = open_table(message.chat.id, ledger, user, chip)
@@ -128,6 +128,8 @@ def create_router() -> Router:
             table.place_bets(user, bets)  # "200 odd 100 red", straight from the command
         except RuntimeError as error:  # a chip below the minimum, or not enough coins
             return await message.reply(str(error))
+        if ready:
+            table.set_ready(user)  # after the bets: a chip put down takes the 👍 back
 
         if now:  # nobody is going to tap, so skip the table entirely
             return await spin_table(message, table, state, post=True)
@@ -153,7 +155,7 @@ def create_router() -> Router:
         if not args:
             return await message.reply("Tell me what to bet on: /bet 200 odd 100 red")
 
-        chip, bets, now = parse_bets(args)
+        chip, bets, now, ready = parse_bets(args)
 
         reply = message.reply_to_message
         table = find_table(message.chat.id, host_id=user.id, message_id=reply.message_id if reply is not None else None)
@@ -170,6 +172,8 @@ def create_router() -> Router:
             table.place_bets(user, bets)
         except RuntimeError as error:  # not enough coins, an unknown spot, a chip below the minimum
             return await message.reply(str(error))
+        if ready:
+            table.set_ready(user)  # `/bet -ready` with nothing else is fine too: just done
 
         if now:
             return await spin_table(table.message, table, state)

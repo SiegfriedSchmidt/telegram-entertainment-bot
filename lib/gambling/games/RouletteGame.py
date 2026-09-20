@@ -231,15 +231,16 @@ class RouletteTable:
         return "\n".join(caption)
 
 
-def parse_bets(args: list[str], chip: MONEY_TYPE = None) -> tuple[MONEY_TYPE, list[tuple[str, int]], bool]:
-    """Read `/roulette 200 odd 100 red -now` into the chip to start with, the bets, and whether to
-    spin at once.
+def parse_bets(args: list[str], chip: MONEY_TYPE = None) -> tuple[MONEY_TYPE, list[tuple[str, int]], bool, bool]:
+    """Read `/roulette 200 odd 100 red -now -ready` into the chip to start with, the bets, and the
+    two flags.
 
     A lone word in front is the chip — that is how `/roulette 1000` and `/roulette allin` keep
-    working — the rest are `amount spot` pairs, and `-now` can sit anywhere.
+    working — the rest are `amount spot` pairs, and the flags can sit anywhere.
     """
-    tokens = [token for token in args if token != "-now"]
-    spin_now = "-now" in args
+    flags = ("-now", "-ready")
+    tokens = [token for token in args if token not in flags]
+    spin_now, ready = "-now" in args, "-ready" in args
 
     if len(tokens) % 2 and tokens[0].lower() not in SPOTS:
         chip, tokens = tokens[0], tokens[1:]
@@ -252,7 +253,7 @@ def parse_bets(args: list[str], chip: MONEY_TYPE = None) -> tuple[MONEY_TYPE, li
 
     if len(tokens) % 2:
         raise RuntimeError(f"Invalid bet {tokens[-1]}")
-    return chip, bets, spin_now
+    return chip, bets, spin_now, ready
 
 
 TABLES: dict[tuple[int, int], RouletteTable] = {}  # (chat id, host id) -> that player's open round
