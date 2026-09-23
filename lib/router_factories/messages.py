@@ -14,6 +14,10 @@ from lib.utils.regex_utils import VIDEO_LINK_REGEX, get_video_link_from_text
 def create_notifications_trigger(router: Router, notification_name: str, notification_id: int):
     @router.message(F.text.contains(notification_name))
     async def user_message(message: types.Message, state: FSMContext):
+        current_state = await state.get_state()
+        if current_state is not None:
+            return None
+
         await state.set_state(ConfirmationState.user_call_confirmation)
         await state.set_data({"notification_name": notification_name, "notification_id": notification_id})
         return await message.reply(
