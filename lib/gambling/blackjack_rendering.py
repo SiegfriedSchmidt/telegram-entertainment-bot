@@ -21,10 +21,10 @@ card_back = cv2.resize(card_back, (card_back.shape[1] * 3, card_back.shape[0] * 
 card_size = card_back.shape[1], card_back.shape[0]
 
 # split hands are placed side by side, each one fanned to the right
-HAND_PAD = 10                  # minimal gap between two hands
-HAND_STEP = 0.35               # share of a card width the next card of a hand is offset by
-HAND_Y = 400                   # top of the player's row
-FOCUS_COLOR = (60, 200, 255)   # BGR, glow around the hand being played
+HAND_PAD = 10  # minimal gap between two hands
+HAND_STEP = 0.35  # share of a card width the next card of a hand is offset by
+HAND_Y = 400  # top of the player's row
+FOCUS_COLOR = (60, 200, 255)  # BGR, glow around the hand being played
 FOCUS_ALPHA = 0.35
 
 
@@ -113,6 +113,9 @@ def calculate_score(hand: list[str]) -> int:
 
 
 def is_blackjack(hand: list[str]) -> bool:
+    if len(hand) != 2:
+        return False
+
     first_two = {int(hand[0][1:]), int(hand[1][1:])}
     return 1 in first_two and any(el in first_two for el in [10, 11, 12, 13])
 
