@@ -112,41 +112,8 @@ def create_router() -> Router:
             return await callback.answer("Only the host may spin the wheel", show_alert=True, cache_time=3)
         return await spin_table(callback.message, table, state)
 
-    @router.message(Command("roulette"))
-    async def roulette_cmd(message: types.Message, command: CommandObject, state: FSMContext,
-                           user: UserProfile, ledger: Ledger):
-        """`/roulette [chip] [amount spot ...] [-now] [-ready]` — open a table, and bet in one go."""
-        chip, bets, now, ready = parse_bets(command.args.split() if command.args else [], user.roulette_bet)
-
-        try:
-            table = open_table(message.chat.id, ledger, user, chip)
-        except RuntimeError as error:  # not enough coins to open a table
-            return await message.reply(str(error))
-
-        user.roulette_bet = chip
-        try:
-            table.place_bets(user, bets)  # "200 odd 100 red", straight from the command
-        except RuntimeError as error:  # a chip below the minimum, or not enough coins
-            return await message.reply(str(error))
-        if ready:
-            table.set_ready(user)  # after the bets: a chip put down takes the 👍 back
-
-        if now:  # nobody is going to tap, so skip the table entirely
-            return await spin_table(message, table, state, post=True)
-
-        game_message = await message.reply_photo(
-            FSInputFile(table.table_image(), filename="roulette.png"),
-            caption=table.get_betting_caption(),
-            reply_markup=get_roulette_keyboard(table.host.id),
-            parse_mode="HTML"
-        )
-        table.message = game_message  # so /bet can find this wheel by a reply
-        await state.set_state(RouletteState.roulette_activated)
-        return await state.set_data({"game_message": game_message})
-
     @router.message(Command("bet"))
-    async def bet_command_cmd(message: types.Message, command: CommandObject, state: FSMContext,
-                              user: UserProfile):
+    async def bet_command_cmd(message: types.Message, command: CommandObject, state: FSMContext, user: UserProfile):
         """Chips without touching the keyboard: `/bet 200 odd 100 red`.
 
         The table is the wheel you replied to, or your own, or the only one open in the chat.
@@ -188,5 +155,37 @@ def create_router() -> Router:
             return await state.clear()
         game_message: types.Message = (await state.get_data()).get("game_message")
         return await game_message.reply("You're playing roulette right now!")
+
+    @router.message(Command("roulette"))
+    async def roulette_cmd(message: types.Message, command: CommandObject, state: FSMContext, user: UserProfile,
+                           ledger: Ledger):
+        """`/roulette [chip] [amount spot ...] [-now] [-ready]` — open a table, and bet in one go."""
+        chip, bets, now, ready = parse_bets(command.args.split() if command.args else [], user.roulette_bet)
+
+        try:
+            table = open_table(message.chat.id, ledger, user, chip)
+        except RuntimeError as error:  # not enough coins to open a table
+            return await message.reply(str(error))
+
+        user.roulette_bet = chip
+        try:
+            table.place_bets(user, bets)  # "200 odd 100 red", straight from the command
+        except RuntimeError as error:  # a chip below the minimum, or not enough coins
+            return await message.reply(str(error))
+        if ready:
+            table.set_ready(user)  # after the bets: a chip put down takes the 👍 back
+
+        if now:  # nobody is going to tap, so skip the table entirely
+            return await spin_table(message, table, state, post=True)
+
+        game_message = await message.reply_photo(
+            FSInputFile(table.table_image(), filename="roulette.png"),
+            caption=table.get_betting_caption(),
+            reply_markup=get_roulette_keyboard(table.host.id),
+            parse_mode="HTML"
+        )
+        table.message = game_message  # so /bet can find this wheel by a reply
+        await state.set_state(RouletteState.roulette_activated)
+        return await state.set_data({"game_message": game_message})
 
     return router

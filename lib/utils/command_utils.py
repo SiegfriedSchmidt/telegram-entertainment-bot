@@ -1,6 +1,6 @@
 import asyncio
 from aiogram import types
-from aiogram.types import LinkPreviewOptions, FSInputFile, InputMediaVideo
+from aiogram.types import LinkPreviewOptions, FSInputFile, InputMediaVideo, ReactionTypeEmoji
 from lib.downloader import VideoInfo
 from lib.downloader import downloader
 from lib.keyboards.link_keyboard import get_link_keyboard
@@ -9,9 +9,19 @@ from lib.utils.general_utils import get_size_str
 from lib.workers import workers
 
 
+async def show_error(error_text: str, answer: types.Message, message: types.Message):
+    await answer.edit_text(error_text)
+    await asyncio.sleep(5)
+    await answer.delete()
+    await message.react([ReactionTypeEmoji(emoji='💊')])
+
+
 async def download_video(message: types.Message, url: str, constraint=False):
     answer = await message.reply("Getting info...")
-    info = await workers.enqueue(downloader.prepare_info, url)  # type: VideoInfo
+    info = await workers.enqueue(downloader.prepare_info, url)  # type: VideoInfo | str
+
+    if isinstance(info, str):
+        return await show_error(info, answer, message)
 
     if constraint and info.duration > storage.video_max_duration:
         return await answer.delete()
@@ -30,7 +40,7 @@ async def download_video(message: types.Message, url: str, constraint=False):
 
         error, result = await workers.enqueue(downloader.download_video, info, callback)  # type: bool, str
         if error:
-            return await answer.edit_text(f"Download failed: {result}")
+            return await show_error("Error during downloading...", answer, message)
 
     filesize = info.video_path.stat().st_size
     caption = f"{info.video_path.name} {get_size_str(filesize)} {info.view_count}" + (f" ({result})" if result else "")

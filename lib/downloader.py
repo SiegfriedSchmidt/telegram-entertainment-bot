@@ -112,25 +112,29 @@ class Downloader:
         else:
             self.ydl_opts["cookiefile"] = str(path)
 
-    def prepare_info(self, url: str) -> VideoInfo:
-        with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            tmp_path = Path(ydl.prepare_filename(info))
+    def prepare_info(self, url: str) -> VideoInfo | str:
+        try:
+            with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                tmp_path = Path(ydl.prepare_filename(info))
 
-            new_filename = slugify_filename(tmp_path.name[len(self.tmp_prefix):])
-            video_path = (tmp_path.parent / new_filename)
-            info_path = video_path.with_suffix('.json')
-            server_url = f"{config.server_video_url}/{video_path.name}" if config.server_video_url else ""
-            duration = int(info.get("duration", 0) or -1)
-            # noinspection PyTypedDict
-            view_count = int(info.get("view_count", info.get("like_count", 0)) or -1)
-            downloaded = video_path.is_file()
+                new_filename = slugify_filename(tmp_path.name[len(self.tmp_prefix):])
+                video_path = (tmp_path.parent / new_filename)
+                info_path = video_path.with_suffix('.json')
+                server_url = f"{config.server_video_url}/{video_path.name}" if config.server_video_url else ""
+                duration = int(info.get("duration", 0) or -1)
+                # noinspection PyTypedDict
+                view_count = int(info.get("view_count", info.get("like_count", 0)) or -1)
+                downloaded = video_path.is_file()
 
-            if not downloaded and not info_path.exists():
-                with open(info_path, "w") as f:
-                    json.dump(info, f, ensure_ascii=False, indent=2)
+                if not downloaded and not info_path.exists():
+                    with open(info_path, "w") as f:
+                        json.dump(info, f, ensure_ascii=False, indent=2)
 
-        return VideoInfo(downloaded, duration, view_count, url, info_path, tmp_path, video_path, server_url)
+            return VideoInfo(downloaded, duration, view_count, url, info_path, tmp_path, video_path, server_url)
+        except Exception as e:
+            main_logger.error(f"[Downloader] Error downloading {url}: {e}", exc_info=e)
+            return "Info extraction failed! The cause is probably related to cookies, waiting for ceo to upload them..."
 
     def download_video(self, video_info: VideoInfo, callback: Callable[[str], None] = None) -> Tuple[bool, str]:
         try:
