@@ -33,4 +33,3 @@ build-and-push:
     - docker compose -f docker-compose.yml -f docker-compose.ci.yml build
     - docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
     - docker compose -f docker-compose.yml -f docker-compose.ci.yml push
-    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
