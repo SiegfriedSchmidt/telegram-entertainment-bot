@@ -15,5 +15,8 @@ def reward_function(base_reward: int, block_height: int, block_nonce: int) -> in
 
 
 if __name__ == '__main__':
-    print(reward_function(2000, 2, 67))
+    for i in range(1338, 1400):
+        x = round(i ** 1.5 / 8.084211)
+        print(reward_function(2000, i, x))
     print(reward_function(2000, 101, 1))
+    print(reward_function(2000, 101, 0))

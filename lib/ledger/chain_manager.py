@@ -214,7 +214,7 @@ class ChainManager:
 
     @staticmethod
     def mine_nonce(block_data: dict, diff: str) -> int:
-        nonce = 0
+        nonce = 1
         while True:
             block_data["nonce"] = nonce
             block_hash = compute_hash(block_data)

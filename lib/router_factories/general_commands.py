@@ -371,13 +371,17 @@ def create_router():
         else:
             nonce = user.nonce
 
-        user.nonce = nonce
         failure_msg = None
         if seconds := database.is_unavailable_mine_attempt(user.id):
             failure_msg = await message.answer(
                 f"You already used your mine attempt. Next attempt in {seconds} seconds."
             )
+        elif not (1 <= nonce <= 1_000_000_000):
+            failure_msg = await message.answer(
+                f"Nonce should be integer between 1 and 1'000'000'000!"
+            )
         else:
+            user.nonce = nonce
             hashes = []
             for i in range(storage.mine_block_user_attempts):
                 try:
